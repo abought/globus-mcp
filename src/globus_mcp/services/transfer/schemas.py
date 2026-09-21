@@ -68,7 +68,7 @@ class TransferList(BaseModel):
     limit: int = Field(description="Maximum number of results to return.")
 
 
-class TransferEndpointList(TransferList):
+class TransferCollectionList(TransferList):
     has_next_page: bool = Field(
         description="Indicates whether making a query at the next offset would yield more results",
     )

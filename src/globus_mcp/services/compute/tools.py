@@ -64,14 +64,18 @@ def globus_compute_register_python_function(
     ] = None,
     public: Annotated[
         bool,
-        Field(description="Indicates whether the Python function can be used by others"),
+        Field(description="Indicates whether the Python function is publicly shared"),
     ] = False,
     *,
     ctx: Context[GlobusContext],
 ) -> ComputeFunctionRegisterResponse:
-    """Register a Python function with Globus Compute.
+    """
+    Register a new Python function that can then be run on a Globus Compute endpoint via
+        `globus_compute_submit_task`.
 
-    Use globus_compute_submit_task to run the registered Python function on an endpoint.
+    This is an advanced function, as it adds executable code to a remote environment. Consult
+    the user about security implications before proceeding, and check that the python version
+    and dependencies for this code match the environment available on the endpoint.
     """
     client = get_compute_client(ctx)
 
@@ -80,6 +84,7 @@ def globus_compute_register_python_function(
             source=function_code,
             function_name=function_name,
             description=description,
+            # TODO: this seems like a big LLM footgun; consider removing public option from MCP
             public=public,
         )
     except globus_sdk.GlobusAPIError as e:
@@ -133,14 +138,20 @@ def globus_compute_register_shell_command(
     ] = None,
     public: Annotated[
         bool,
-        Field(description="Indicates whether the shell command can be used by others"),
+        Field(description="Indicates whether the shell command is publicly shared"),
     ] = False,
     *,
     ctx: Context[GlobusContext],
 ) -> ComputeFunctionRegisterResponse:
-    """Register a shell command function with Globus Compute.
+    """
+    Register a new shell command function that can then be run on a Globus Compute endpoint via
+        `globus_compute_submit_task`.
 
-    Use globus_compute_submit_task to run the registered shell command on an endpoint.
+    The tool it calls must be accessible on the specified compute endpoint host.
+
+    This is an advanced function, as it adds executable code to a remote environment. Consult
+    the user about security implications before proceeding, and check that the python version
+    and dependencies for this code match the environment available on the endpoint.
     """
     client = get_compute_client(ctx)
 
@@ -154,6 +165,7 @@ def globus_compute_register_shell_command(
             source=source,
             function_name=function_name,
             description=description,
+            # TODO: this seems like a big LLM footgun; consider removing public option from MCP
             public=public,
         )
     except globus_sdk.GlobusAPIError as e:
@@ -176,9 +188,12 @@ def globus_compute_submit_task(
     ],
     ctx: Context[GlobusContext],
 ) -> ComputeSubmitResponse:
-    """Submit a function execution task to a Globus Compute endpoint.
+    """Run a specified function on a specified Globus Compute endpoint.
 
-    Use globus_compute_get_task_status to monitor progress and retrieve results.
+    Use `globus_compute_get_task_status` to monitor progress and retrieve results.
+
+    NOTE: In practice, functions are not entirely portable: they depend heavily on the specific
+     endpoint chosen. If a tool fails to run, prompt the user to verify the chosen endpoint.
     """
     client = get_compute_client(ctx)
 

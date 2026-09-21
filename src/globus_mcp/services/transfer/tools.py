@@ -12,7 +12,7 @@ from globus_mcp.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas import (
     TransferEndpoint,
-    TransferEndpointList,
+    TransferCollectionList,
     TransferEvent,
     TransferEventList,
     TransferFile,
@@ -38,7 +38,7 @@ def _handle_gare(
         raise
 
 
-def _format_search_response(res: globus_sdk.IterableTransferResponse) -> TransferEndpointList:
+def _format_search_response(res: globus_sdk.IterableTransferResponse) -> TransferCollectionList:
     endpoints = []
     for e in res["DATA"]:
         endpoint = TransferEndpoint(
@@ -50,7 +50,7 @@ def _format_search_response(res: globus_sdk.IterableTransferResponse) -> Transfe
             description=e.get("description"),
         )
         endpoints.append(endpoint)
-    return TransferEndpointList(
+    return TransferCollectionList(
         limit=res["limit"],
         offset=res["offset"],
         has_next_page=res["has_next_page"],
@@ -58,7 +58,7 @@ def _format_search_response(res: globus_sdk.IterableTransferResponse) -> Transfe
     )
 
 
-def globus_transfer_list_endpoints_and_collections(
+def globus_transfer_list_collections(
     filter_scope: Annotated[
         Literal[
             "my-endpoints",
@@ -70,25 +70,23 @@ def globus_transfer_list_endpoints_and_collections(
         ],
         Field(
             description=(
-                "String indicating which scope/class of endpoints and collections to list."
+                "String indicating which scope/class of collections to list."
                 " Options:"
                 " my-endpoints (owned by the user),"
                 " administered-by-me (user has admin role, superset of my-endpoints),"
                 " shared-with-me (shared with user),"
                 " shared-by-me (guest collections where user is admin or access manager),"
-                " recently-used (recently used by user),"
+                " recently-used (default; recently used by user),"
                 " in-use (with active tasks owned by user),"
             ),
         ),
-    ],
+    ] = "recently-used",
     limit: Annotated[int, Field(le=100, description="Maximum number of results to return.")] = 100,
     offset: Annotated[int, Field(description="Zero based offset into the result set.")] = 0,
     *,
     ctx: Context[GlobusContext],
-) -> TransferEndpointList:
-    """List Globus Transfer endpoints and collections that the user has access to, filtered based
-    on the provided scope.
-    """
+) -> TransferCollectionList:
+    """List Globus Transfer collections (storage locations) that the user has access to."""
     client = get_transfer_client(ctx)
 
     try:
@@ -103,23 +101,24 @@ def globus_transfer_list_endpoints_and_collections(
     return _format_search_response(res)
 
 
-def globus_transfer_search_endpoints_and_collections(
+def globus_transfer_search_collections(
     filter_fulltext: Annotated[
         str,
-        Field(min_length=1, description=("String to match endpoint fields against.")),
+        Field(min_length=1, description="String to match collection fields against."),
     ],
     limit: Annotated[int, Field(le=100, description="Maximum number of results to return.")] = 100,
     offset: Annotated[int, Field(description="Zero based offset into the result set.")] = 0,
     *,
     ctx: Context[GlobusContext],
-) -> TransferEndpointList:
-    """Use a filter string to search all Globus Transfer endpoints and collections that
-    are visible to the user.
+) -> TransferCollectionList:
+    """
+    Find any (user-visible) Globus collection where any field matches the specified filter string.
     """
     client = get_transfer_client(ctx)
 
     try:
         res = client.endpoint_search(
+            # TODO: Add better filter scopes etc
             filter_scope="all",
             filter_fulltext=filter_fulltext,
             limit=limit,
@@ -131,10 +130,10 @@ def globus_transfer_search_endpoints_and_collections(
     return _format_search_response(res)
 
 
-def globus_transfer_submit_task(
-    source_collection_id: Annotated[str, Field(description="ID of the source collection")],
+def globus_transfer_submit_file_transfer_task(
+    source_collection_id: Annotated[str, Field(description="UUID of the source collection")],
     destination_collection_id: Annotated[
-        str, Field(description="ID of the destination collection")
+        str, Field(description="UUID of the destination collection")
     ],
     source_path: Annotated[
         str, Field(description="Path to the source directory or file of the transfer")
@@ -164,6 +163,7 @@ def globus_transfer_submit_task(
     data.add_item(source_path=source_path, destination_path=destination_path)
 
     try:
+        # TODO: add more supported options
         res = _handle_gare(client.submit_transfer, data)
     except globus_sdk.GlobusAPIError as e:
         raise ToolError(f"Failed to submit transfer: {e}") from e
@@ -172,10 +172,8 @@ def globus_transfer_submit_task(
 
 
 def globus_transfer_get_task_events(
-    task_id: Annotated[str, Field(description="ID of the task")],
-    limit: Annotated[
-        int, Field(le=1_000, description="Maximum number of results to return.")
-    ] = 10,
+    task_id: Annotated[str, Field(description="UUID of the task")],
+    limit: Annotated[int, Field(le=1_000, description="Maximum number of results to return.")] = 10,
     offset: Annotated[int, Field(description="Zero based offset into the result set.")] = 0,
     *,
     ctx: Context[GlobusContext],
@@ -204,8 +202,8 @@ def globus_transfer_get_task_events(
     return TransferEventList(limit=res["limit"], offset=res["offset"], data=events)
 
 
-def globus_transfer_list_directory(
-    collection_id: Annotated[str, Field(description="ID of the collection")],
+def globus_transfer_list_directory_contents(
+    collection_id: Annotated[str, Field(description="UUID of the collection")],
     path: Annotated[str, Field(description="Path to a directory")],
     limit: Annotated[
         int, Field(le=100_000, description="Maximum number of results to return.")
@@ -214,10 +212,11 @@ def globus_transfer_list_directory(
     *,
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
-    """List contents of a directory on a Globus Transfer collection"""
+    """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
     client = get_transfer_client(ctx)
 
     try:
+        # TODO: Expose more options in the future, eg show_hidden
         res = client.operation_ls(collection_id, path=path, limit=limit, offset=offset)
     except globus_sdk.GlobusAPIError as e:
         raise ToolError(f"Failed to list directory contents: {e}") from e
@@ -241,13 +240,13 @@ def globus_transfer_list_directory(
 
 TRANSFER_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
     ToolCategory.READ: [
-        globus_transfer_search_endpoints_and_collections,
-        globus_transfer_list_endpoints_and_collections,
+        globus_transfer_search_collections,
+        globus_transfer_list_collections,
         globus_transfer_get_task_events,
-        globus_transfer_list_directory,
+        globus_transfer_list_directory_contents,
     ],
     ToolCategory.OPERATE: [
-        globus_transfer_submit_task,
+        globus_transfer_submit_file_transfer_task,
     ],
     ToolCategory.ADMIN: [],
 }

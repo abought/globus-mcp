@@ -19,10 +19,10 @@ from globus_mcp.services.transfer.tools import (
     _format_search_response,
     _handle_gare,
     globus_transfer_get_task_events,
-    globus_transfer_list_directory,
-    globus_transfer_list_endpoints_and_collections,
-    globus_transfer_search_endpoints_and_collections,
-    globus_transfer_submit_task,
+    globus_transfer_list_collections,
+    globus_transfer_list_directory_contents,
+    globus_transfer_search_collections,
+    globus_transfer_submit_file_transfer_task,
 )
 from tests.utils import random_string
 
@@ -171,7 +171,7 @@ def test_format_search_response():
         assert ep.description == ep_data["description"]
 
 
-def test_globus_transfer_list_endpoints_and_collections(
+def test_globus_transfer_list_collections(
     mock_ctx: Mock, mock_client: Mock, mock_format_search_res: Mock
 ):
     limit = random.randint(1, 100)
@@ -183,7 +183,7 @@ def test_globus_transfer_list_endpoints_and_collections(
     mock_format_search_res.return_value = formatted_res
 
     filter_scope = random_string()
-    res = globus_transfer_list_endpoints_and_collections(
+    res = globus_transfer_list_collections(
         filter_scope=filter_scope,
         limit=limit,
         offset=offset,
@@ -199,12 +199,12 @@ def test_globus_transfer_list_endpoints_and_collections(
     assert res == formatted_res
 
 
-def test_globus_transfer_list_endpoints_and_collections_api_error(
+def test_globus_transfer_list_collections_api_error(
     mock_ctx: Mock, mock_client: Mock
 ):
     mock_client.endpoint_search.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to get search results"):
-        globus_transfer_list_endpoints_and_collections(
+        globus_transfer_list_collections(
             filter_scope=random_string(),
             limit=100,
             offset=0,
@@ -212,7 +212,7 @@ def test_globus_transfer_list_endpoints_and_collections_api_error(
         )
 
 
-def test_globus_transfer_search_endpoints_and_collections(
+def test_globus_transfer_search_collections(
     mock_ctx: Mock, mock_client: Mock, mock_format_search_res: Mock
 ):
     limit = random.randint(1, 100)
@@ -224,7 +224,7 @@ def test_globus_transfer_search_endpoints_and_collections(
     mock_format_search_res.return_value = formatted_res
 
     filter_fulltext = random_string()
-    res = globus_transfer_search_endpoints_and_collections(
+    res = globus_transfer_search_collections(
         filter_fulltext=filter_fulltext,
         limit=limit,
         offset=offset,
@@ -241,12 +241,12 @@ def test_globus_transfer_search_endpoints_and_collections(
     assert res == formatted_res
 
 
-def test_globus_transfer_search_endpoints_and_collections_api_error(
+def test_globus_transfer_search_collections_api_error(
     mock_ctx: Mock, mock_client: Mock
 ):
     mock_client.endpoint_search.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to get search results"):
-        globus_transfer_search_endpoints_and_collections(
+        globus_transfer_search_collections(
             filter_fulltext=random_string(),
             limit=100,
             offset=0,
@@ -254,7 +254,9 @@ def test_globus_transfer_search_endpoints_and_collections_api_error(
         )
 
 
-def test_globus_transfer_submit_task(mock_ctx: Mock, mock_client: Mock, mock_handle_gare: Mock):
+def test_globus_transfer_submit_file_transfer_task(
+    mock_ctx: Mock, mock_client: Mock, mock_handle_gare: Mock
+):
     source_collection_id = str(uuid.uuid4())
     destination_collection_id = str(uuid.uuid4())
     source_path = random_string()
@@ -271,7 +273,7 @@ def test_globus_transfer_submit_task(mock_ctx: Mock, mock_client: Mock, mock_han
 
     mock_handle_gare.return_value = Mock(data={"task_id": task_id})
 
-    res = globus_transfer_submit_task(
+    res = globus_transfer_submit_file_transfer_task(
         source_collection_id=source_collection_id,
         destination_collection_id=destination_collection_id,
         source_path=source_path,
@@ -284,10 +286,12 @@ def test_globus_transfer_submit_task(mock_ctx: Mock, mock_client: Mock, mock_han
     assert res.task_id == task_id
 
 
-def test_globus_transfer_submit_task_api_error(mock_ctx: Mock, mock_handle_gare: Mock):
+def test_globus_transfer_submit_file_transfer_task_api_error(
+    mock_ctx: Mock, mock_handle_gare: Mock
+):
     mock_handle_gare.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to submit transfer"):
-        globus_transfer_submit_task(
+        globus_transfer_submit_file_transfer_task(
             source_collection_id=str(uuid.uuid4()),
             destination_collection_id=str(uuid.uuid4()),
             source_path=random_string(),
@@ -341,7 +345,7 @@ def test_globus_transfer_get_task_events_api_error(mock_ctx: Mock, mock_client: 
         globus_transfer_get_task_events(task_id=str(uuid.uuid4()), limit=10, offset=0, ctx=mock_ctx)
 
 
-def test_globus_transfer_list_directory(mock_ctx: Mock, mock_client: Mock):
+def test_globus_transfer_list_directory_contents(mock_ctx: Mock, mock_client: Mock):
     collection_id = str(uuid.uuid4())
     path = random_string()
 
@@ -365,7 +369,7 @@ def test_globus_transfer_list_directory(mock_ctx: Mock, mock_client: Mock):
         )
     mock_client.operation_ls.return_value = res_data
 
-    res = globus_transfer_list_directory(
+    res = globus_transfer_list_directory_contents(
         collection_id=collection_id,
         path=path,
         limit=res_data["limit"],
@@ -390,9 +394,9 @@ def test_globus_transfer_list_directory(mock_ctx: Mock, mock_client: Mock):
         assert file.last_modified == file_data["last_modified"]
 
 
-def test_globus_transfer_list_directory_api_error(mock_ctx: Mock, mock_client: Mock):
+def test_globus_transfer_list_directory_contents_api_error(mock_ctx: Mock, mock_client: Mock):
     mock_client.operation_ls.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to list directory contents"):
-        globus_transfer_list_directory(
+        globus_transfer_list_directory_contents(
             collection_id=str(uuid.uuid4()), path=random_string(), limit=100, offset=0, ctx=mock_ctx
         )

@@ -11,7 +11,7 @@ def register_tools_by_category(
     tools_by_category: Mapping[ToolCategory, list[Callable[..., Any]]],
     categories: Iterable[ToolCategory],
 ) -> None:
-    """Shared helper: registers only the MCP tools needed for a given service and permissions level"""
+    """Shared helper: register only the tools needed for a given service and permissions level"""
     for category in categories:
         for tool in tools_by_category[category]:
             mcp.add_tool(tool)

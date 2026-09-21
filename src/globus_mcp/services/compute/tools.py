@@ -8,6 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.compute.client import get_compute_client
 from globus_mcp.services.compute.schemas import (
@@ -220,10 +221,17 @@ def globus_compute_get_task_status(
     )
 
 
-ALL_COMPUTE_TOOLS: list[Callable[..., Any]] = [
-    globus_compute_list_endpoints,
-    globus_compute_register_python_function,
-    globus_compute_register_shell_command,
-    globus_compute_submit_task,
-    globus_compute_get_task_status,
-]
+COMPUTE_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
+    ToolCategory.READ: [
+        globus_compute_list_endpoints,
+        globus_compute_get_task_status,
+    ],
+    ToolCategory.OPERATE: [
+        globus_compute_submit_task,
+    ],
+    ToolCategory.ADMIN: [
+        # Allowing new code to be run on the server is ADMIN level due to the security implications
+        globus_compute_register_python_function,
+        globus_compute_register_shell_command,
+    ],
+}

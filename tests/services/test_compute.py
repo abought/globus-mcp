@@ -13,13 +13,14 @@ from globus_sdk import GlobusAPIError
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.compute.client import get_compute_client
 from globus_mcp.services.compute.registry import register_compute
 from globus_mcp.services.compute.tools import (
     _SHELL_FUNCTION_TEMPLATE,
-    ALL_COMPUTE_TOOLS,
+    COMPUTE_TOOLS_BY_CATEGORY,
     globus_compute_get_task_status,
     globus_compute_list_endpoints,
     globus_compute_register_python_function,
@@ -46,10 +47,18 @@ def test_compute_in_service_registry():
 
 def test_register_compute():
     mcp = Mock(spec=MCPServer)
-    register_compute(mcp)
+    register_compute(mcp, [ToolCategory.READ, ToolCategory.OPERATE, ToolCategory.ADMIN])
     registered = [c[0][0] for c in mcp.add_tool.call_args_list]
-    for tool in ALL_COMPUTE_TOOLS:
-        assert tool in registered
+    for tools in COMPUTE_TOOLS_BY_CATEGORY.values():
+        for tool in tools:
+            assert tool in registered
+
+
+def test_register_compute_by_category():
+    mcp = Mock(spec=MCPServer)
+    register_compute(mcp, [ToolCategory.ADMIN])
+    registered = [c[0][0] for c in mcp.add_tool.call_args_list]
+    assert registered == COMPUTE_TOOLS_BY_CATEGORY[ToolCategory.ADMIN]
 
 
 def test_get_compute_client(mock_ctx: Mock):

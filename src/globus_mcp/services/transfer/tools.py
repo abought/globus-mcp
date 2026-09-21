@@ -7,6 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas import (
@@ -238,10 +239,15 @@ def globus_transfer_list_directory(
     return TransferFileList(limit=limit, offset=offset, data=files)
 
 
-ALL_TRANSFER_TOOLS: list[Callable[..., Any]] = [
-    globus_transfer_search_endpoints_and_collections,
-    globus_transfer_list_endpoints_and_collections,
-    globus_transfer_submit_task,
-    globus_transfer_get_task_events,
-    globus_transfer_list_directory,
-]
+TRANSFER_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
+    ToolCategory.READ: [
+        globus_transfer_search_endpoints_and_collections,
+        globus_transfer_list_endpoints_and_collections,
+        globus_transfer_get_task_events,
+        globus_transfer_list_directory,
+    ],
+    ToolCategory.OPERATE: [
+        globus_transfer_submit_task,
+    ],
+    ToolCategory.ADMIN: [],
+}

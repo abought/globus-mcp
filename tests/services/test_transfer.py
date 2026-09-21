@@ -9,12 +9,13 @@ from globus_sdk import GlobusAPIError, IterableTransferResponse, TransferClient,
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.registry import register_transfer
 from globus_mcp.services.transfer.tools import (
-    ALL_TRANSFER_TOOLS,
+    TRANSFER_TOOLS_BY_CATEGORY,
     _format_search_response,
     _handle_gare,
     globus_transfer_get_task_events,
@@ -53,10 +54,18 @@ def test_transfer_in_service_registry():
 
 def test_register_transfer():
     mcp = Mock(spec=MCPServer)
-    register_transfer(mcp)
+    register_transfer(mcp, [ToolCategory.READ, ToolCategory.OPERATE, ToolCategory.ADMIN])
     registered = [c[0][0] for c in mcp.add_tool.call_args_list]
-    for tool in ALL_TRANSFER_TOOLS:
-        assert tool in registered
+    for tools in TRANSFER_TOOLS_BY_CATEGORY.values():
+        for tool in tools:
+            assert tool in registered
+
+
+def test_register_transfer_by_category():
+    mcp = Mock(spec=MCPServer)
+    register_transfer(mcp, [ToolCategory.OPERATE])
+    registered = [c[0][0] for c in mcp.add_tool.call_args_list]
+    assert registered == TRANSFER_TOOLS_BY_CATEGORY[ToolCategory.OPERATE]
 
 
 def test_get_transfer_client(mock_ctx: Mock):

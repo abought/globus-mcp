@@ -4,6 +4,7 @@ import sys
 from datetime import UTC, datetime
 from typing import Any, TextIO
 
+import globus_sdk
 from mcp.server.mcpserver import Context
 
 from globus_mcp.context import GlobusContext
@@ -63,10 +64,14 @@ def get_globus_identity(ctx: Context[GlobusContext]) -> str | None:
     """
     Capture the globus user used to perform a remote action.
 
-    TODO: Some auth types (eg clientApp) may not populate this field; explore alternatives
+    A ClientApp (service credentials) never receives an id_token,
+        but in that case `client_id` is the identity directly.
     """
     app = ctx.request_context.lifespan_context.app
-    return app.token_storage.identity_id
+    identity_id = app.token_storage.identity_id
+    if identity_id is None and isinstance(app, globus_sdk.ClientApp):
+        return str(app.client_id)
+    return identity_id
 
 
 def get_harness_identity(ctx: Context[GlobusContext]) -> tuple[str | None, str | None]:

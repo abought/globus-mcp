@@ -15,7 +15,6 @@ The MCP server maintains a structured audit trail of all actions performed.
    * A specific list of fields is provided within
    * Certain system errors do not reach tool calls,
 
-
 ## Schema
 
 Every log line is a single JSON object. Fields fall into two groups: a base envelope
@@ -38,7 +37,7 @@ present on every line, and per-event fields layered on top.
 |-------------------|---------------------------------------|--------------------------------------------------------------------------------------------------------------|
 | `tool_name`       | string                                | Which tool was called.                                                                                       |
 | `service`         | `"compute"` / `"transfer"`            | Which namespace the tool belongs to- eg "compute", "transfer"                                                |
-| `globus_identity` | UUID string, absent if not applicable | If a globus resource is invoked, specify the Globus identity used                                            |
+| `globus_identity` | UUID string, absent if not applicable | If a globus resource is invoked, specify the Globus identity used.                                           |
 | `client_name`     | string or `null`                      | The connecting MCP client/harness's declared name (`clientInfo.name`). Not a unique conversation/ session ID |
 | `client_version`  | string or `null`                      | The connecting MCP client/harness's declared version (`clientInfo.version`)                                  |
 

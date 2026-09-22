@@ -7,18 +7,21 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from globus_mcp.audit import log_tool_call, log_tool_error
 from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas import (
-    TransferEndpoint,
     TransferCollectionList,
+    TransferEndpoint,
     TransferEvent,
     TransferEventList,
     TransferFile,
     TransferFileList,
     TransferSubmitResponse,
 )
+
+_SERVICE = "transfer"
 
 
 def _handle_gare(
@@ -87,6 +90,7 @@ def globus_transfer_list_collections(
     ctx: Context[GlobusContext],
 ) -> TransferCollectionList:
     """List Globus Transfer collections (storage locations) that the user has access to."""
+    log_tool_call(ctx, tool_name=globus_transfer_list_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
@@ -96,6 +100,9 @@ def globus_transfer_list_collections(
             offset=offset,
         )
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_list_collections.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to get search results: {e}") from e
 
     return _format_search_response(res)
@@ -114,6 +121,7 @@ def globus_transfer_search_collections(
     """
     Find any (user-visible) Globus collection where any field matches the specified filter string.
     """
+    log_tool_call(ctx, tool_name=globus_transfer_search_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
@@ -125,6 +133,9 @@ def globus_transfer_search_collections(
             offset=offset,
         )
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_search_collections.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to get search results: {e}") from e
 
     return _format_search_response(res)
@@ -153,6 +164,9 @@ def globus_transfer_submit_file_transfer_task(
 
     Use globus_transfer_get_task_events to monitor the task's progress.
     """
+    log_tool_call(
+        ctx, tool_name=globus_transfer_submit_file_transfer_task.__name__, service=_SERVICE
+    )
     client = get_transfer_client(ctx)
 
     data = globus_sdk.TransferData(
@@ -166,6 +180,12 @@ def globus_transfer_submit_file_transfer_task(
         # TODO: add more supported options
         res = _handle_gare(client.submit_transfer, data)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_submit_file_transfer_task.__name__,
+            service=_SERVICE,
+            error=e,
+        )
         raise ToolError(f"Failed to submit transfer: {e}") from e
 
     return TransferSubmitResponse(task_id=res.data["task_id"])
@@ -181,11 +201,15 @@ def globus_transfer_get_task_events(
     """Get a list of Globus Transfer task events to monitor the status and progress of a task.
     The events are ordered by time descending (newest first).
     """
+    log_tool_call(ctx, tool_name=globus_transfer_get_task_events.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
         res = client.task_event_list(task_id=task_id, limit=limit, offset=offset)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_get_task_events.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to get task events: {e}") from e
 
     events = []
@@ -213,12 +237,21 @@ def globus_transfer_list_directory_contents(
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
     """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
+    log_tool_call(
+        ctx, tool_name=globus_transfer_list_directory_contents.__name__, service=_SERVICE
+    )
     client = get_transfer_client(ctx)
 
     try:
         # TODO: Expose more options in the future, eg show_hidden
         res = client.operation_ls(collection_id, path=path, limit=limit, offset=offset)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_list_directory_contents.__name__,
+            service=_SERVICE,
+            error=e,
+        )
         raise ToolError(f"Failed to list directory contents: {e}") from e
 
     files = []

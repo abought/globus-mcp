@@ -4,6 +4,7 @@ from importlib.metadata import version as _get_distribution_version
 
 from mcp.server.mcpserver import MCPServer
 
+from globus_mcp.audit import configure_audit_logging
 from globus_mcp.categories import DEFAULT_CATEGORIES, ToolCategory
 from globus_mcp.context import lifespan
 from globus_mcp.services.compute.registry import register_compute
@@ -71,6 +72,7 @@ def resolve_categories(
 
 
 def main() -> None:
+    configure_audit_logging()
     args = parse_arguments()
     for service, register in service_registry.items():
         categories = resolve_categories(getattr(args, service))

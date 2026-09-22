@@ -16,5 +16,6 @@ async def test_lifespan_yields_globus_context():
         async with lifespan(mock_server) as context:
             assert isinstance(context, GlobusContext)
             assert context.app is mock_app
+            assert isinstance(context.server_session_id, str) and context.server_session_id
             assert context.transfer_client is None
             assert context.compute_client is None

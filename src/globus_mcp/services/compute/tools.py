@@ -8,6 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
+from globus_mcp.audit import log_tool_call, log_tool_error
 from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.compute.client import get_compute_client
@@ -17,6 +18,8 @@ from globus_mcp.services.compute.schemas import (
     ComputeSubmitResponse,
     ComputeTask,
 )
+
+_SERVICE = "compute"
 
 
 def globus_compute_list_endpoints(
@@ -35,11 +38,15 @@ def globus_compute_list_endpoints(
     ctx: Context[GlobusContext],
 ) -> list[ComputeEndpoint]:
     """List Globus Compute endpoints that the user has access to."""
+    log_tool_call(ctx, tool_name=globus_compute_list_endpoints.__name__, service=_SERVICE)
     client = get_compute_client(ctx)
 
     try:
         res = client.get_endpoints(role=role)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_compute_list_endpoints.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to get endpoints: {e}") from e
 
     endpoints = []
@@ -77,6 +84,9 @@ def globus_compute_register_python_function(
     the user about security implications before proceeding, and check that the python version
     and dependencies for this code match the environment available on the endpoint.
     """
+    log_tool_call(
+        ctx, tool_name=globus_compute_register_python_function.__name__, service=_SERVICE
+    )
     client = get_compute_client(ctx)
 
     try:
@@ -88,6 +98,12 @@ def globus_compute_register_python_function(
             public=public,
         )
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_compute_register_python_function.__name__,
+            service=_SERVICE,
+            error=e,
+        )
         raise ToolError(f"Failed to register Python function: {e}") from e
 
     return ComputeFunctionRegisterResponse(function_id=function_id)
@@ -153,6 +169,9 @@ def globus_compute_register_shell_command(
     the user about security implications before proceeding, and check that the python version
     and dependencies for this code match the environment available on the endpoint.
     """
+    log_tool_call(
+        ctx, tool_name=globus_compute_register_shell_command.__name__, service=_SERVICE
+    )
     client = get_compute_client(ctx)
 
     function_name = "run_shell_command"
@@ -169,6 +188,12 @@ def globus_compute_register_shell_command(
             public=public,
         )
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_compute_register_shell_command.__name__,
+            service=_SERVICE,
+            error=e,
+        )
         raise ToolError(f"Failed to register shell command: {e}") from e
 
     return ComputeFunctionRegisterResponse(function_id=function_id)
@@ -195,6 +220,7 @@ def globus_compute_submit_task(
     NOTE: In practice, functions are not entirely portable: they depend heavily on the specific
      endpoint chosen. If a tool fails to run, prompt the user to verify the chosen endpoint.
     """
+    log_tool_call(ctx, tool_name=globus_compute_submit_task.__name__, service=_SERVICE)
     client = get_compute_client(ctx)
 
     batch = client.create_batch(result_serializers=[validate_strategylike(JSONData).import_path])
@@ -203,6 +229,9 @@ def globus_compute_submit_task(
     try:
         res = client.batch_run(endpoint_id, batch)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_compute_submit_task.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to submit task: {e}") from e
 
     task_id = res["tasks"][function_id][0]
@@ -214,11 +243,15 @@ def globus_compute_get_task_status(
     ctx: Context[GlobusContext],
 ) -> ComputeTask:
     """Retrieve the status and result of a Globus Compute task."""
+    log_tool_call(ctx, tool_name=globus_compute_get_task_status.__name__, service=_SERVICE)
     client = get_compute_client(ctx)
 
     try:
         res = client._compute_web_client.v2.get_task(task_id)
     except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_compute_get_task_status.__name__, service=_SERVICE, error=e
+        )
         raise ToolError(f"Failed to get task status: {e}") from e
 
     result = res.get("result")
@@ -226,6 +259,9 @@ def globus_compute_get_task_status(
         try:
             result = client.fx_serializer.deserialize(result)
         except Exception as e:
+            log_tool_error(
+                ctx, tool_name=globus_compute_get_task_status.__name__, service=_SERVICE, error=e
+            )
             raise ToolError("Unable to deserialize result") from e
 
     return ComputeTask(

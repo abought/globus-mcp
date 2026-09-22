@@ -83,7 +83,7 @@ def globus_transfer_list_collections(
                 " in-use (with active tasks owned by user),"
             ),
         ),
-    ] = "recently-used",
+    ] = "my-endpoints",
     limit: Annotated[int, Field(le=100, description="Maximum number of results to return.")] = 100,
     offset: Annotated[int, Field(description="Zero based offset into the result set.")] = 0,
     *,
@@ -160,9 +160,10 @@ def globus_transfer_submit_file_transfer_task(
     *,
     ctx: Context[GlobusContext],
 ) -> TransferSubmitResponse:
-    """Submit a transfer task between two Globus Transfer collections.
+    """
+    Submit a transfer task to move files or folders between two Globus Transfer collections.
 
-    Use globus_transfer_get_task_events to monitor the task's progress.
+    Use `globus_transfer_get_task_events` to monitor the task's progress.
     """
     log_tool_call(
         ctx, tool_name=globus_transfer_submit_file_transfer_task.__name__, service=_SERVICE
@@ -198,7 +199,8 @@ def globus_transfer_get_task_events(
     *,
     ctx: Context[GlobusContext],
 ) -> TransferEventList:
-    """Get a list of Globus Transfer task events to monitor the status and progress of a task.
+    """
+    Get a list of Globus Transfer task events to monitor the status and progress of a task.
     The events are ordered by time descending (newest first).
     """
     log_tool_call(ctx, tool_name=globus_transfer_get_task_events.__name__, service=_SERVICE)
@@ -237,9 +239,7 @@ def globus_transfer_list_directory_contents(
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
     """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
-    log_tool_call(
-        ctx, tool_name=globus_transfer_list_directory_contents.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_transfer_list_directory_contents.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:

@@ -199,9 +199,7 @@ def test_globus_transfer_list_collections(
     assert res == formatted_res
 
 
-def test_globus_transfer_list_collections_api_error(
-    mock_ctx: Mock, mock_client: Mock
-):
+def test_globus_transfer_list_collections_api_error(mock_ctx: Mock, mock_client: Mock):
     mock_client.endpoint_search.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to get search results"):
         globus_transfer_list_collections(
@@ -241,9 +239,7 @@ def test_globus_transfer_search_collections(
     assert res == formatted_res
 
 
-def test_globus_transfer_search_collections_api_error(
-    mock_ctx: Mock, mock_client: Mock
-):
+def test_globus_transfer_search_collections_api_error(mock_ctx: Mock, mock_client: Mock):
     mock_client.endpoint_search.side_effect = GlobusAPIError(r=MagicMock())
     with pytest.raises(ToolError, match="Failed to get search results"):
         globus_transfer_search_collections(

@@ -73,3 +73,6 @@ If you've [registered a client application](https://docs.globus.org/api/auth/dev
 Service account / client credentials are recommended for many local single-user scenarios, because it ensures that the LLM operates under tighter access limitations than your user account. For example, if you (a human) split your time among three projects, then there is no guarantee that an LLM would restrict itself to the data you tell it to read. A service account can be used to establish a hard permissions boundary that can only see resources for one specific project. 
 
 The disadvantage of service accounts is that they are entirely separate identities: you will need to re-grant access to every affected resource, and not every service supports guest / service account identities.
+
+## Development
+See the included `Makefile` for development commands.

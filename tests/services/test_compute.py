@@ -111,7 +111,6 @@ def test_globus_compute_register_python_function(mock_ctx: Mock, mock_client: Mo
     function_code = random_string()
     function_name = random_string()
     description = random_string()
-    public = True
     function_id = str(uuid.uuid4())
 
     mock_client.register_source_code.return_value = function_id
@@ -120,7 +119,6 @@ def test_globus_compute_register_python_function(mock_ctx: Mock, mock_client: Mo
         function_code=function_code,
         function_name=function_name,
         description=description,
-        public=public,
         ctx=mock_ctx,
     )
 
@@ -128,7 +126,6 @@ def test_globus_compute_register_python_function(mock_ctx: Mock, mock_client: Mo
         source=function_code,
         function_name=function_name,
         description=description,
-        public=public,
     )
     assert res.function_id == function_id
 
@@ -140,7 +137,6 @@ def test_globus_compute_register_python_function_api_error(mock_ctx: Mock, mock_
             function_code=random_string(),
             function_name=random_string(),
             description=random_string(),
-            public=True,
             ctx=mock_ctx,
         )
 
@@ -190,13 +186,12 @@ def test_globus_compute_register_shell_command(mock_ctx: Mock, mock_client: Mock
     command = f"echo {random_string()}"
     timeout = random.randint(1, 50)
     description = random_string()
-    public = True
     function_id = str(uuid.uuid4())
 
     mock_client.register_source_code.return_value = function_id
 
     res = globus_compute_register_shell_command(
-        command=command, timeout=timeout, description=description, public=public, ctx=mock_ctx
+        command=command, timeout=timeout, description=description, ctx=mock_ctx
     )
 
     source = _SHELL_FUNCTION_TEMPLATE.format(
@@ -208,7 +203,6 @@ def test_globus_compute_register_shell_command(mock_ctx: Mock, mock_client: Mock
         source=source,
         function_name=function_name,
         description=description,
-        public=public,
     )
     assert res.function_id == function_id
 
@@ -220,7 +214,6 @@ def test_globus_compute_register_shell_command_api_error(mock_ctx: Mock, mock_cl
             command=random_string(),
             timeout=random.randint(1, 60),
             description=random_string(),
-            public=True,
             ctx=mock_ctx,
         )
 

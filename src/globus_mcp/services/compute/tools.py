@@ -33,7 +33,7 @@ def globus_compute_list_endpoints(
                 " that the user owns."
             ),
         ),
-    ] = "any",
+    ] = "owner",
     *,
     ctx: Context[GlobusContext],
 ) -> list[ComputeEndpoint]:
@@ -69,10 +69,6 @@ def globus_compute_register_python_function(
         str | None,
         Field(description="An optional description of the Python function"),
     ] = None,
-    public: Annotated[
-        bool,
-        Field(description="Indicates whether the Python function is publicly shared"),
-    ] = False,
     *,
     ctx: Context[GlobusContext],
 ) -> ComputeFunctionRegisterResponse:
@@ -80,22 +76,19 @@ def globus_compute_register_python_function(
     Register a new Python function that can then be run on a Globus Compute endpoint via
         `globus_compute_submit_task`.
 
-    This is an advanced function, as it adds executable code to a remote environment. Consult
+    This is an advanced feature that adds executable code to a remote environment. Consult
     the user about security implications before proceeding, and check that the python version
     and dependencies for this code match the environment available on the endpoint.
     """
-    log_tool_call(
-        ctx, tool_name=globus_compute_register_python_function.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_compute_register_python_function.__name__, service=_SERVICE)
     client = get_compute_client(ctx)
 
     try:
         function_id = client.register_source_code(
+            # NOTE: public flag is intentionally not exposed to LLMs
             source=function_code,
             function_name=function_name,
             description=description,
-            # TODO: this seems like a big LLM footgun; consider removing public option from MCP
-            public=public,
         )
     except globus_sdk.GlobusAPIError as e:
         log_tool_error(
@@ -152,10 +145,6 @@ def globus_compute_register_shell_command(
         str | None,
         Field(description="An optional description of the shell command"),
     ] = None,
-    public: Annotated[
-        bool,
-        Field(description="Indicates whether the shell command is publicly shared"),
-    ] = False,
     *,
     ctx: Context[GlobusContext],
 ) -> ComputeFunctionRegisterResponse:
@@ -165,13 +154,11 @@ def globus_compute_register_shell_command(
 
     The tool it calls must be accessible on the specified compute endpoint host.
 
-    This is an advanced function, as it adds executable code to a remote environment. Consult
+    This is an advanced feature that adds executable code to a remote environment. Consult
     the user about security implications before proceeding, and check that the python version
     and dependencies for this code match the environment available on the endpoint.
     """
-    log_tool_call(
-        ctx, tool_name=globus_compute_register_shell_command.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_compute_register_shell_command.__name__, service=_SERVICE)
     client = get_compute_client(ctx)
 
     function_name = "run_shell_command"
@@ -181,11 +168,10 @@ def globus_compute_register_shell_command(
 
     try:
         function_id = client.register_source_code(
+            # NOTE: public flag is intentionally not exposed to LLMs
             source=source,
             function_name=function_name,
             description=description,
-            # TODO: this seems like a big LLM footgun; consider removing public option from MCP
-            public=public,
         )
     except globus_sdk.GlobusAPIError as e:
         log_tool_error(

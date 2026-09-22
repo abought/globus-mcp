@@ -7,13 +7,13 @@ with [Globus](https://www.globus.org/) services.
 
 ### [Globus Transfer](https://docs.globus.org/api/transfer/)
 
-- `globus_transfer_list_endpoints_and_collections` - List endpoints and collections the user has
+- `globus_transfer_list_collections` - List endpoints and collections the user has
 access to
-- `globus_transfer_search_endpoints_and_collections` - Use a filter string to search all endpoints
+- `globus_transfer_search_collections` - Use a filter string to search all endpoints
 and collections that are visible to the user
-- `globus_transfer_submit_task` - Submit a transfer task between two collections
+- `globus_transfer_submit_file_transfer_task` - Submit a transfer task between two collections
 - `globus_transfer_get_task_events` - Get a list of task events
-- `globus_transfer_list_directory` - List contents of a directory on a collection
+- `globus_transfer_list_directory_contents` - List contents of a directory on a collection
 
 ### [Globus Compute](https://docs.globus.org/compute/)
 
@@ -43,8 +43,8 @@ If the service flag is specified without a level, only `read` tools will be acti
       "command": "uvx",
       "args": [
         "globus-mcp",
-        "--transfer read operate",
-        "--compute read"
+        "--transfer", "read", "operate",
+        "--compute", "read"
       ]
     }
   }

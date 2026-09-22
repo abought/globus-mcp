@@ -7,7 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.audit import log_tool_call, log_tool_error
+from globus_mcp.audit import log_tool_call, log_tool_error, log_tool_result
 from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
@@ -189,7 +189,14 @@ def globus_transfer_submit_file_transfer_task(
         )
         raise ToolError(f"Failed to submit transfer: {e}") from e
 
-    return TransferSubmitResponse(task_id=res.data["task_id"])
+    task_id = res.data["task_id"]
+    log_tool_result(
+        ctx,
+        tool_name=globus_transfer_submit_file_transfer_task.__name__,
+        service=_SERVICE,
+        result={"task_id": task_id},
+    )
+    return TransferSubmitResponse(task_id=task_id)
 
 
 def globus_transfer_get_task_events(

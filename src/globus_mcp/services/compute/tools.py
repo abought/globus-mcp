@@ -8,7 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.audit import log_tool_call, log_tool_error
+from globus_mcp.audit import log_tool_call, log_tool_error, log_tool_result
 from globus_mcp.categories import ToolCategory
 from globus_mcp.context import GlobusContext
 from globus_mcp.services.compute.client import get_compute_client
@@ -99,6 +99,12 @@ def globus_compute_register_python_function(
         )
         raise ToolError(f"Failed to register Python function: {e}") from e
 
+    log_tool_result(
+        ctx,
+        tool_name=globus_compute_register_python_function.__name__,
+        service=_SERVICE,
+        result={"function_id": function_id},
+    )
     return ComputeFunctionRegisterResponse(function_id=function_id)
 
 
@@ -182,6 +188,12 @@ def globus_compute_register_shell_command(
         )
         raise ToolError(f"Failed to register shell command: {e}") from e
 
+    log_tool_result(
+        ctx,
+        tool_name=globus_compute_register_shell_command.__name__,
+        service=_SERVICE,
+        result={"function_id": function_id},
+    )
     return ComputeFunctionRegisterResponse(function_id=function_id)
 
 
@@ -221,6 +233,12 @@ def globus_compute_submit_task(
         raise ToolError(f"Failed to submit task: {e}") from e
 
     task_id = res["tasks"][function_id][0]
+    log_tool_result(
+        ctx,
+        tool_name=globus_compute_submit_task.__name__,
+        service=_SERVICE,
+        result={"task_id": task_id},
+    )
     return ComputeSubmitResponse(task_id=task_id)
 
 

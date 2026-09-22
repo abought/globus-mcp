@@ -39,6 +39,9 @@ class _JsonlFormatter(logging.Formatter):
             value = getattr(record, field, None)
             if value is not None:
                 payload[field] = value
+        result: dict[str, Any] | None = getattr(record, "result", None)
+        if result:
+            payload["output"] = result
         return json.dumps(payload)
 
 
@@ -121,6 +124,25 @@ def log_tool_call(
             include_globus_identity=include_globus_identity,
         ),
     )
+
+
+def log_tool_result(
+    ctx: Context[GlobusContext],
+    *,
+    tool_name: str,
+    service: str,
+    result: dict[str, Any],
+    include_globus_identity: bool = True,
+) -> None:
+    extra = _base_extra(
+        ctx,
+        event="tool_result",
+        tool_name=tool_name,
+        service=service,
+        include_globus_identity=include_globus_identity,
+    )
+    extra["result"] = result
+    audit_logger.info(f"Tool result: {tool_name}", extra=extra)
 
 
 def log_tool_error(

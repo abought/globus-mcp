@@ -330,6 +330,7 @@ source = { editable = "." }
 dependencies = [
     { name = "globus-compute-sdk" },
     { name = "globus-sdk" },
+    { name = "httpx2" },
     { name = "mcp", extra = ["cli"] },
 ]
 
@@ -346,6 +347,7 @@ dev = [
 requires-dist = [
     { name = "globus-compute-sdk", specifier = ">=3.16.1,<4.0.0" },
     { name = "globus-sdk", specifier = ">=3.65.0,<4.0.0" },
+    { name = "httpx2" },
     { name = "mcp", extras = ["cli"], specifier = ">=2.0.0,<3.0.0" },
 ]
 

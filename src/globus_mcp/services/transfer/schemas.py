@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -108,3 +110,19 @@ class TransferTask(BaseModel):
     completion_time: str | None = Field(
         default=None, description="Time the task completed, if finished"
     )
+
+
+class HttpsUploadResponse(BaseModel):
+    url: str = Field(description="URL of the file on the collection")
+    path: str = Field(description="Path of the file on the collection")
+
+
+class HttpsDownloadResponse(BaseModel):
+    content: str = Field(
+        description="File content, encoded as specified by the 'encoding' field"
+    )
+    encoding: Literal["utf-8", "base64"] = Field(
+        description="Content encoding: 'utf-8' for text files, 'base64' for binary files"
+    )
+    size_bytes: int = Field(description="Size of the file content in bytes")
+    url: str = Field(description="URL the file was downloaded from")

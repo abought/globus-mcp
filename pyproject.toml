@@ -10,6 +10,7 @@ authors = [{ name = "Globus", email = "support@globus.org" }]
 dependencies = [
     "globus-compute-sdk>=3.16.1,<4.0.0",
     "globus-sdk>=3.65.0,<4.0.0",
+    "httpx2",
     "mcp[cli]>=2.0.0,<3.0.0",
 ]
 

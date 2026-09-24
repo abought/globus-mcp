@@ -112,7 +112,7 @@ def log_tool_call(
     *,
     tool_name: str,
     service: str,
-    include_globus_identity: bool = True,
+    include_globus_identity: bool = True,  # True if tool calls an external Globus service
 ) -> None:
     audit_logger.info(
         f"Tool call: {tool_name}",

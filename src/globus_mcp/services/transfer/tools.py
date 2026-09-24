@@ -18,7 +18,9 @@ from globus_mcp.services.transfer.schemas import (
     TransferEventList,
     TransferFile,
     TransferFileList,
+    TransferItem,
     TransferSubmitResponse,
+    TransferTask,
 )
 
 _SERVICE = "transfer"
@@ -146,24 +148,52 @@ def globus_transfer_submit_file_transfer_task(
     destination_collection_id: Annotated[
         str, Field(description="UUID of the destination collection")
     ],
-    source_path: Annotated[
-        str, Field(description="Path to the source directory or file of the transfer")
-    ],
-    destination_path: Annotated[
-        str,
-        Field(description="Path to the destination directory or file of the transfer"),
+    items: Annotated[
+        list[TransferItem],
+        Field(min_length=1, description="One or more files or directories to transfer."),
     ],
     label: Annotated[
         str,
         Field(description="Label for the transfer task"),
     ] = "Globus MCP Transfer",
+    sync_level: Annotated[
+        Literal["exists", "size", "mtime", "checksum"] | None,
+        Field(
+            description=(
+                "Skip transferring files that have not changed at the destination."
+                " 'exists': skip if destination file is present."
+                " 'size': skip if file sizes match."
+                " 'mtime': skip if source is not newer."
+                " 'checksum': skip if checksums match (most reliable, slowest)."
+            ),
+        ),
+    ] = 'checksum',
+
+    verify_checksum: Annotated[
+        bool,
+        Field(
+            description=(
+                "After transfer, verify source and destination checksums match."
+                " Failed checksums trigger a retry. Adds CPU load on both endpoints."
+            ),
+        ),
+    ] = False,
+    skip_source_errors: Annotated[
+        bool,
+        Field(
+            description=(
+                "When True, silently skip source files that are missing or permission-denied"
+                " rather than failing the task. Use for large transfers over messy data catalogs."
+            ),
+        ),
+    ] = False,
     *,
     ctx: Context[GlobusContext],
 ) -> TransferSubmitResponse:
     """
     Submit a transfer task to move files or folders between two Globus Transfer collections.
 
-    Use `globus_transfer_get_task_events` to monitor the task's progress.
+    Use `globus_transfer_get_task_status` to monitor the task's progress.
     """
     log_tool_call(
         ctx, tool_name=globus_transfer_submit_file_transfer_task.__name__, service=_SERVICE
@@ -171,14 +201,29 @@ def globus_transfer_submit_file_transfer_task(
     client = get_transfer_client(ctx)
 
     data = globus_sdk.TransferData(
+        # user configurable options
         source_endpoint=source_collection_id,
         destination_endpoint=destination_collection_id,
         label=label,
+        sync_level=sync_level,
+        verify_checksum=verify_checksum,
+        skip_source_errors=skip_source_errors,  # big real transfers may have partial faulures
+        # Hardcoded policies for LLM usage: make actions and failures obvious, and secure by default
+        encrypt_data=True,
+        fail_on_quota_errors=True,  # LLM can't intervene to fix out of band
+        delete_destination_extra=False,  # powerful feature with side effects; don't expose to LLM
+        notify_on_succeeded=True,
+        notify_on_failed=True,
+        notify_on_inactive=True,
     )
-    data.add_item(source_path=source_path, destination_path=destination_path)
+    for item in items:
+        data.add_item(
+            source_path=item.source_path,
+            destination_path=item.destination_path,
+            recursive=item.recursive,
+        )
 
     try:
-        # TODO: add more supported options
         res = _handle_gare(client.submit_transfer, data)
     except globus_sdk.GlobusAPIError as e:
         log_tool_error(
@@ -197,6 +242,48 @@ def globus_transfer_submit_file_transfer_task(
         result={"task_id": task_id},
     )
     return TransferSubmitResponse(task_id=task_id)
+
+
+def globus_transfer_get_task_status(
+    task_id: Annotated[str, Field(description="UUID of the transfer task")],
+    *,
+    ctx: Context[GlobusContext],
+) -> TransferTask:
+    """
+    Get the status and progress of a Globus Transfer task.
+
+    Use this to check whether a task is ACTIVE, SUCCEEDED, FAILED, or INACTIVE, and to
+    monitor byte and file counts during an in-progress transfer.
+    """
+    log_tool_call(ctx, tool_name=globus_transfer_get_task_status.__name__, service=_SERVICE)
+    client = get_transfer_client(ctx)
+
+    try:
+        res = client.get_task(task_id)
+    except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_get_task_status.__name__, service=_SERVICE, error=e
+        )
+        raise ToolError(f"Failed to get task status: {e}") from e
+
+    d = res.data
+    result = TransferTask(
+        task_id=d["task_id"],
+        status=d["status"],
+        label=d.get("label"),
+        bytes_transferred=d.get("bytes_transferred"),
+        files_transferred=d.get("files_transferred"),
+        files_skipped=d.get("files_skipped"),
+        deadline=d.get("deadline"),
+        completion_time=d.get("completion_time"),
+    )
+    log_tool_result(
+        ctx,
+        tool_name=globus_transfer_get_task_status.__name__,
+        service=_SERVICE,
+        result={"task_id": result.task_id, "status": result.status},
+    )
+    return result
 
 
 def globus_transfer_get_task_events(
@@ -242,6 +329,10 @@ def globus_transfer_list_directory_contents(
         int, Field(le=100_000, description="Maximum number of results to return.")
     ] = 100,
     offset: Annotated[int, Field(description="Zero based offset into the result set.")] = 0,
+    show_hidden: Annotated[
+        bool,
+        Field(description="Include files and directories whose names begin with a dot."),
+    ] = True,
     *,
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
@@ -250,8 +341,10 @@ def globus_transfer_list_directory_contents(
     client = get_transfer_client(ctx)
 
     try:
-        # TODO: Expose more options in the future, eg show_hidden
-        res = client.operation_ls(collection_id, path=path, limit=limit, offset=offset)
+        # TODO: Expose filter param in the future when a clean LLM-facing syntax is defined
+        res = client.operation_ls(
+            collection_id, path=path, limit=limit, offset=offset, show_hidden=show_hidden
+        )
     except globus_sdk.GlobusAPIError as e:
         log_tool_error(
             ctx,
@@ -282,6 +375,7 @@ TRANSFER_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
     ToolCategory.READ: [
         globus_transfer_search_collections,
         globus_transfer_list_collections,
+        globus_transfer_get_task_status,
         globus_transfer_get_task_events,
         globus_transfer_list_directory_contents,
     ],

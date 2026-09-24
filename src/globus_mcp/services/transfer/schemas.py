@@ -81,3 +81,30 @@ class TransferEventList(TransferList):
 
 class TransferFileList(TransferList):
     data: list[TransferFile] = Field(description="Set of transfer file data")
+
+
+class TransferItem(BaseModel):
+    source_path: str = Field(description="Path to the source file or directory")
+    destination_path: str = Field(description="Path to the destination file or directory")
+    recursive: bool | None = Field(
+        default=None,
+        description=(
+            "Set to True when transferring a directory; omit or leave None for individual files."
+            " (SDK default: None, treated as non-recursive by the Transfer service.)"
+        ),
+    )
+
+
+class TransferTask(BaseModel):
+    task_id: str = Field(description="ID of the task")
+    status: str = Field(description="Task status: ACTIVE, SUCCEEDED, FAILED, or INACTIVE")
+    label: str | None = Field(default=None, description="Human-readable label for the task")
+    bytes_transferred: int | None = Field(default=None, description="Bytes transferred so far")
+    files_transferred: int | None = Field(default=None, description="Files transferred so far")
+    files_skipped: int | None = Field(
+        default=None, description="Files skipped (e.g. due to sync_level)"
+    )
+    deadline: str | None = Field(default=None, description="Deadline for the task, if set")
+    completion_time: str | None = Field(
+        default=None, description="Time the task completed, if finished"
+    )

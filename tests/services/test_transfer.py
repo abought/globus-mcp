@@ -14,11 +14,13 @@ from globus_mcp.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.registry import register_transfer
+from globus_mcp.services.transfer.schemas import TransferItem
 from globus_mcp.services.transfer.tools import (
     TRANSFER_TOOLS_BY_CATEGORY,
     _format_search_response,
     _handle_gare,
     globus_transfer_get_task_events,
+    globus_transfer_get_task_status,
     globus_transfer_list_collections,
     globus_transfer_list_directory_contents,
     globus_transfer_search_collections,
@@ -260,25 +262,72 @@ def test_globus_transfer_submit_file_transfer_task(
     label = random_string()
     task_id = str(uuid.uuid4())
 
-    transfer_data = TransferData(
+    expected_data = TransferData(
         source_endpoint=source_collection_id,
         destination_endpoint=destination_collection_id,
         label=label,
+        encrypt_data=True,
+        fail_on_quota_errors=True,
+        delete_destination_extra=False,
+        notify_on_succeeded=True,
+        notify_on_failed=True,
+        notify_on_inactive=True,
+        verify_checksum=False,
+        skip_source_errors=False,
     )
-    transfer_data.add_item(source_path=source_path, destination_path=destination_path)
+    expected_data.add_item(source_path=source_path, destination_path=destination_path)
 
     mock_handle_gare.return_value = Mock(data={"task_id": task_id})
 
     res = globus_transfer_submit_file_transfer_task(
         source_collection_id=source_collection_id,
         destination_collection_id=destination_collection_id,
-        source_path=source_path,
-        destination_path=destination_path,
+        items=[TransferItem(source_path=source_path, destination_path=destination_path)],
         label=label,
         ctx=mock_ctx,
     )
 
-    mock_handle_gare.assert_called_once_with(mock_client.submit_transfer, transfer_data)
+    mock_handle_gare.assert_called_once_with(mock_client.submit_transfer, expected_data)
+    assert res.task_id == task_id
+
+
+def test_globus_transfer_submit_file_transfer_task_with_options(
+    mock_ctx: Mock, mock_client: Mock, mock_handle_gare: Mock
+):
+    source_collection_id = str(uuid.uuid4())
+    destination_collection_id = str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
+
+    expected_data = TransferData(
+        source_endpoint=source_collection_id,
+        destination_endpoint=destination_collection_id,
+        label="Globus MCP Transfer",
+        sync_level="checksum",
+        encrypt_data=True,
+        fail_on_quota_errors=True,
+        delete_destination_extra=False,
+        notify_on_succeeded=True,
+        notify_on_failed=True,
+        notify_on_inactive=True,
+        verify_checksum=True,
+        skip_source_errors=True,
+    )
+    dir_path = random_string()
+    expected_data.add_item(source_path=dir_path, destination_path=dir_path, recursive=True)
+
+    mock_handle_gare.return_value = Mock(data={"task_id": task_id})
+
+    res = globus_transfer_submit_file_transfer_task(
+        source_collection_id=source_collection_id,
+        destination_collection_id=destination_collection_id,
+        items=[TransferItem(source_path=dir_path, destination_path=dir_path, recursive=True)],
+        sync_level="checksum",
+        verify_checksum=True,
+        skip_source_errors=True,
+        ctx=mock_ctx,
+    )
+
+    mock_handle_gare.assert_called_once_with(mock_client.submit_transfer, expected_data)
     assert res.task_id == task_id
 
 
@@ -290,9 +339,7 @@ def test_globus_transfer_submit_file_transfer_task_api_error(
         globus_transfer_submit_file_transfer_task(
             source_collection_id=str(uuid.uuid4()),
             destination_collection_id=str(uuid.uuid4()),
-            source_path=random_string(),
-            destination_path=random_string(),
-            label=random_string(),
+            items=[TransferItem(source_path=random_string(), destination_path=random_string())],
             ctx=mock_ctx,
         )
 
@@ -374,7 +421,7 @@ def test_globus_transfer_list_directory_contents(mock_ctx: Mock, mock_client: Mo
     )
 
     mock_client.operation_ls.assert_called_once_with(
-        collection_id, path=path, limit=res_data["limit"], offset=res_data["offset"]
+        collection_id, path=path, limit=res_data["limit"], offset=res_data["offset"], show_hidden=True
     )
     assert res.limit == res_data["limit"]
     assert res.offset == res_data["offset"]
@@ -396,3 +443,36 @@ def test_globus_transfer_list_directory_contents_api_error(mock_ctx: Mock, mock_
         globus_transfer_list_directory_contents(
             collection_id=str(uuid.uuid4()), path=random_string(), limit=100, offset=0, ctx=mock_ctx
         )
+
+
+def test_globus_transfer_get_task_status(mock_ctx: Mock, mock_client: Mock):
+    task_id = str(uuid.uuid4())
+    task_data = {
+        "task_id": task_id,
+        "status": "SUCCEEDED",
+        "label": random_string(),
+        "bytes_transferred": random.randint(0, 10_000_000),
+        "files_transferred": random.randint(0, 100),
+        "files_skipped": random.randint(0, 10),
+        "deadline": None,
+        "completion_time": random_string(),
+    }
+    mock_client.get_task.return_value = Mock(data=task_data)
+
+    res = globus_transfer_get_task_status(task_id=task_id, ctx=mock_ctx)
+
+    mock_client.get_task.assert_called_once_with(task_id)
+    assert res.task_id == task_data["task_id"]
+    assert res.status == task_data["status"]
+    assert res.label == task_data["label"]
+    assert res.bytes_transferred == task_data["bytes_transferred"]
+    assert res.files_transferred == task_data["files_transferred"]
+    assert res.files_skipped == task_data["files_skipped"]
+    assert res.deadline is None
+    assert res.completion_time == task_data["completion_time"]
+
+
+def test_globus_transfer_get_task_status_api_error(mock_ctx: Mock, mock_client: Mock):
+    mock_client.get_task.side_effect = GlobusAPIError(r=MagicMock())
+    with pytest.raises(ToolError, match="Failed to get task status"):
+        globus_transfer_get_task_status(task_id=str(uuid.uuid4()), ctx=mock_ctx)

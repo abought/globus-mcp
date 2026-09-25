@@ -31,7 +31,7 @@ class TransferSubmitResponse(BaseModel):
 
 class TransferFile(BaseModel):
     name: str = Field(description="Name of the file")
-    type: str = Field(description="The type of the entry: dir, file, or invalid_symlink.")
+    type: str = Field(description="The type of the entry: file, dir, chr, blk, pipe, or other. For symlinks the type reflects the target.")
     link_target: str | None = Field(
         default=None,
         description=(
@@ -126,3 +126,17 @@ class HttpsDownloadResponse(BaseModel):
     )
     size_bytes: int = Field(description="Size of the file content in bytes")
     url: str = Field(description="URL the file was downloaded from")
+
+
+class HttpsFileUploadResponse(BaseModel):
+    url: str = Field(description="URL of the file on the collection")
+    collection_path: str = Field(description="Path of the file on the collection")
+    local_path: str = Field(description="Absolute local path the file was read from")
+    size_bytes: int = Field(description="Size of the uploaded file in bytes")
+
+
+class HttpsFileDownloadResponse(BaseModel):
+    url: str = Field(description="URL the file was downloaded from")
+    collection_path: str = Field(description="Path of the file on the collection")
+    local_path: str = Field(description="Absolute local path the file was saved to")
+    size_bytes: int = Field(description="Size of the downloaded file in bytes")

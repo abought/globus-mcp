@@ -6,7 +6,10 @@ from globus_mcp.services.transfer.tools.collections import (
     globus_transfer_list_collections,
     globus_transfer_search_collections,
 )
-from globus_mcp.services.transfer.tools.fs import globus_transfer_list_directory_contents
+from globus_mcp.services.transfer.tools.fs import (
+    globus_transfer_list_directory_contents,
+    globus_transfer_stat_path,
+)
 # from globus_mcp.services.transfer.tools.https import (
 #     globus_transfer_direct_read_content,
 #     globus_transfer_download_file_via_https,
@@ -26,6 +29,7 @@ TRANSFER_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
         globus_transfer_get_task_status,
         globus_transfer_get_task_events,
         globus_transfer_list_directory_contents,
+        globus_transfer_stat_path,
         #globus_transfer_direct_read_content,
     ],
     ToolCategory.OPERATE: [

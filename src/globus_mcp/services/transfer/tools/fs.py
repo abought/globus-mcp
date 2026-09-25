@@ -62,3 +62,38 @@ def globus_transfer_list_directory_contents(
         files.append(file)
 
     return TransferFileList(limit=limit, offset=offset, data=files)
+
+
+def globus_transfer_stat_path(
+    collection_id: Annotated[str, Field(description="UUID of the collection")],
+    path: Annotated[str, Field(description="Path to a file or directory")],
+    *,
+    ctx: Context[GlobusContext],
+) -> TransferFile:
+    """
+    Get metadata for a specific file or directory on a Globus Transfer collection.
+
+    Useful for checking existence or confirming a path's type before running a transfer.
+    Raises an error if the path does not exist.
+    """
+    log_tool_call(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE)
+    client = get_transfer_client(ctx)
+
+    try:
+        f = client.operation_stat(collection_id, path=path)
+    except globus_sdk.GlobusAPIError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e
+        )
+        raise ToolError(f"Failed to stat path: {e}") from e
+
+    return TransferFile(
+        name=f["name"],
+        type=f["type"],
+        link_target=f.get("link_target"),
+        user=f.get("user"),
+        group=f.get("group"),
+        permissions=f["permissions"],
+        size=f["size"],
+        last_modified=f["last_modified"],
+    )

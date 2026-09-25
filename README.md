@@ -74,5 +74,33 @@ Service account / client credentials are recommended for many local single-user 
 
 The disadvantage of service accounts is that they are entirely separate identities: you will need to re-grant access to every affected resource, and not every service supports guest / service account identities.
 
+### Shared Filesystem
+
+Some tools can read and write files that are too large to fit in the LLM context window — for
+example, you may want the MCP server to read or write a file on one end, and have it processed by the coding agent via a one-off script on the other end.  Example use cases include data download for analysis, or building a search index too large to fit into memory.
+
+To enable these tools, set `FILESYSTEM_ROOT` to a directory that both the MCP server process and your agent environment can access at the same path:
+
+```json
+{
+  "mcpServers": {
+    "globus-mcp": {
+      "command": "uvx",
+      "args": ["globus-mcp", "--transfer", "read", "operate"],
+      "env": {
+        "FILESYSTEM_ROOT": "/path/to/shared/folder"
+      }
+    }
+  }
+}
+```
+
+When `FILESYSTEM_ROOT` is set the server registers `mcp_get_shared_mount_location`, which the  agent can call to discover the path. The directory must already exist, and the server will refuse to start if it overlaps with system directories, the Python environment, or known credential stores (`.ssh`, `.aws`, etc.). This is a best-effort safeguard, and if you use these advanced filesystem tools, **it is up to you to ensure that no sensitive data is compromised**.
+
+> **Note:** If your agent runs in a sandbox or container, ensure the shared directory is mounted
+> at the same absolute path inside the sandbox. The MCP server cannot verify agent-side
+> accessibility — use `mcp_get_shared_mount_location` and confirm the path is reachable before
+> relying on file-based workflows.
+
 ## Development
 See the included `Makefile` for development commands.

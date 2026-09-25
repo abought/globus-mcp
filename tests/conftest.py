@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from mcp.server.mcpserver import Context
 
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.context import GlobusContext
 from tests.utils import random_string
 
 

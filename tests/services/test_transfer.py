@@ -9,16 +9,14 @@ from globus_sdk import GlobusAPIError, IterableTransferResponse, TransferClient,
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from globus_mcp.categories import ToolCategory
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.categories import ToolCategory
+from globus_mcp.core.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.registry import register_transfer
 from globus_mcp.services.transfer.schemas import TransferItem
 from globus_mcp.services.transfer.tools import (
     TRANSFER_TOOLS_BY_CATEGORY,
-    _format_search_response,
-    _handle_gare,
     globus_transfer_get_task_events,
     globus_transfer_get_task_status,
     globus_transfer_list_collections,
@@ -26,26 +24,36 @@ from globus_mcp.services.transfer.tools import (
     globus_transfer_search_collections,
     globus_transfer_submit_file_transfer_task,
 )
+from globus_mcp.services.transfer.tools.collections import _format_search_response
+from globus_mcp.services.transfer.tools.tasks import _handle_gare
 from tests.utils import random_string
 
 
 @pytest.fixture
 def mock_client():
-    with patch("globus_mcp.services.transfer.tools.get_transfer_client") as mock_get_client:
-        mc = Mock(spec=TransferClient)
-        mock_get_client.return_value = mc
+    # get_transfer_client is imported directly into each tools submodule, so it must be
+    # patched at each of those three call sites (not on the tools package itself).
+    mc = Mock(spec=TransferClient)
+    target = "globus_mcp.services.transfer.tools.{}.get_transfer_client"
+    with (
+        patch(target.format("collections"), return_value=mc),
+        patch(target.format("fs"), return_value=mc),
+        patch(target.format("tasks"), return_value=mc),
+    ):
         yield mc
 
 
 @pytest.fixture
 def mock_handle_gare():
-    with patch("globus_mcp.services.transfer.tools._handle_gare") as _mock_handle_gare:
+    with patch("globus_mcp.services.transfer.tools.tasks._handle_gare") as _mock_handle_gare:
         yield _mock_handle_gare
 
 
 @pytest.fixture
 def mock_format_search_res():
-    with patch("globus_mcp.services.transfer.tools._format_search_response") as _format_search_res:
+    with patch(
+        "globus_mcp.services.transfer.tools.collections._format_search_response"
+    ) as _format_search_res:
         yield _format_search_res
 
 
@@ -266,6 +274,7 @@ def test_globus_transfer_submit_file_transfer_task(
         source_endpoint=source_collection_id,
         destination_endpoint=destination_collection_id,
         label=label,
+        sync_level="checksum",  # tool default when not explicitly passed
         encrypt_data=True,
         fail_on_quota_errors=True,
         delete_destination_extra=False,

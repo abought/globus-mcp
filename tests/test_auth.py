@@ -4,7 +4,7 @@ import pytest
 from globus_sdk import ClientApp, UserApp
 from pytest import MonkeyPatch
 
-from globus_mcp.auth import DEFAULT_CLIENT_ID, get_globus_app
+from globus_mcp.core.auth import DEFAULT_CLIENT_ID, get_globus_app
 from tests.utils import random_string
 
 

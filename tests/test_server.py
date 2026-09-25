@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from globus_mcp.categories import DEFAULT_CATEGORIES, ToolCategory
+from globus_mcp.core.categories import DEFAULT_CATEGORIES, ToolCategory
 from globus_mcp.server import main, mcp, services
 from tests.utils import random_string
 

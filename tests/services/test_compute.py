@@ -13,8 +13,8 @@ from globus_sdk import GlobusAPIError
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from globus_mcp.categories import ToolCategory
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.categories import ToolCategory
+from globus_mcp.core.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.compute.client import get_compute_client
 from globus_mcp.services.compute.registry import register_compute

@@ -10,7 +10,7 @@ from pydantic import Field
 from globus_mcp.core.audit import log_tool_call, log_tool_error
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
-from globus_mcp.services.transfer.schemas import TransferFile, TransferFileList
+from globus_mcp.services.transfer.schemas.fs import TransferFile, TransferFileList
 
 _SERVICE = "transfer"
 

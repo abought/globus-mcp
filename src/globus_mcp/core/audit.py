@@ -7,7 +7,7 @@ from typing import Any, TextIO
 import globus_sdk
 from mcp.server.mcpserver import Context
 
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.context import GlobusContext
 
 _LOGGER_NAME = "globus_mcp.audit"
 _EXTRA_FIELDS = (

@@ -2,7 +2,8 @@ from collections.abc import Iterable
 
 from mcp.server.mcpserver import MCPServer
 
-from globus_mcp.categories import ToolCategory
+from globus_mcp.core.categories import ToolCategory
+
 from globus_mcp.services.registry import register_tools_by_category
 from globus_mcp.services.transfer.tools import TRANSFER_TOOLS_BY_CATEGORY
 

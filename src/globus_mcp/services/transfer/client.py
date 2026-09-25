@@ -1,7 +1,7 @@
 from globus_sdk import TransferClient
 from mcp.server.mcpserver import Context
 
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.context import GlobusContext
 
 
 def get_transfer_client(ctx: Context[GlobusContext]) -> TransferClient:

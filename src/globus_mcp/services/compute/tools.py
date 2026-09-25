@@ -8,9 +8,9 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.audit import log_tool_call, log_tool_error, log_tool_result
-from globus_mcp.categories import ToolCategory
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.audit import log_tool_call, log_tool_error, log_tool_result
+from globus_mcp.core.categories import ToolCategory
+from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.compute.client import get_compute_client
 from globus_mcp.services.compute.schemas import (
     ComputeEndpoint,

@@ -3,8 +3,8 @@ from typing import Literal
 import globus_sdk
 from mcp.server.mcpserver import Context
 
-from globus_mcp.audit import get_globus_identity, log_tool_call, log_tool_result
-from globus_mcp.context import GlobusContext
+from globus_mcp.core.audit import get_globus_identity, log_tool_call, log_tool_result
+from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.auth.schemas import WhoAmI
 
 _SERVICE = "auth"

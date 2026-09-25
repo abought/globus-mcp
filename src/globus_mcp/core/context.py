@@ -7,7 +7,7 @@ from globus_compute_sdk import Client
 from globus_sdk import GlobusApp, TransferClient
 from mcp.server.mcpserver import MCPServer
 
-from globus_mcp.auth import get_globus_app
+from globus_mcp.core.auth import get_globus_app
 
 
 @dataclass

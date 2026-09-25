@@ -3,7 +3,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from globus_mcp.categories import ToolCategory
+from globus_mcp.core.categories import ToolCategory
 
 
 def register_tools_by_category(

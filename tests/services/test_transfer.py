@@ -13,6 +13,7 @@ from globus_mcp.core.categories import ToolCategory
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.server import service_registry
 from globus_mcp.services.transfer.client import get_transfer_client
+from globus_mcp.services.transfer.config import TransferConfig
 from globus_mcp.services.transfer.registry import register_transfer
 from globus_mcp.services.transfer.schemas import TransferItem
 from globus_mcp.services.transfer.tools import (
@@ -22,11 +23,12 @@ from globus_mcp.services.transfer.tools import (
     globus_transfer_list_collections,
     globus_transfer_list_directory_contents,
     globus_transfer_search_collections,
+    globus_transfer_stat_path,
     globus_transfer_submit_file_transfer_task,
 )
 from globus_mcp.services.transfer.tools.collections import _format_search_response
 from globus_mcp.services.transfer.tools.tasks import _handle_gare
-from tests.utils import random_string
+from tests.utils import random_string, set_restricted_config
 
 
 @pytest.fixture
@@ -98,8 +100,8 @@ def test_handle_gare_happy_path(mock_client: Mock):
     mock_client.some_method.return_value = res_data
     mock_client.some_method.__self__ = mock_client
 
-    args = [random_string() for _ in range(random.randint(1, 10))]
-    kwargs = {random_string(): random_string() for _ in range(random.randint(1, 10))}
+    args = (random_string(), random_string())
+    kwargs = {random_string(): random_string()}
     res = _handle_gare(mock_client.some_method, *args, **kwargs)
 
     assert res == res_data
@@ -110,7 +112,7 @@ def test_handle_gare_consent_required(mock_client: Mock):
     error = GlobusAPIError(r=MagicMock())
     error.http_status = HTTPStatus.FORBIDDEN
     error.code = "ConsentRequired"
-    required_scopes = [random_string() for _ in range(random.randint(1, 10))]
+    required_scopes = [random_string(), random_string()]
     error.info.consent_required.required_scopes = required_scopes
 
     res_data = random_string()
@@ -118,8 +120,8 @@ def test_handle_gare_consent_required(mock_client: Mock):
     mock_client.some_method.side_effect = [error, res_data]
     mock_client.some_method.__self__ = mock_client
 
-    args = [random_string() for _ in range(random.randint(1, 10))]
-    kwargs = {random_string(): random_string() for _ in range(random.randint(1, 10))}
+    args = (random_string(), random_string())
+    kwargs = {random_string(): random_string()}
     res = _handle_gare(mock_client.some_method, *args, **kwargs)
 
     assert res == res_data
@@ -142,7 +144,17 @@ def test_handle_gare_unexpected_error(mock_client: Mock):
         _handle_gare(mock_client.some_method)
 
 
+def _mock_search_response(res_data: dict[str, Any]) -> Mock:
+    mock_res = Mock(spec=IterableTransferResponse)
+    mock_res.__getitem__ = Mock(side_effect=lambda k: res_data[k])
+    mock_res.get = Mock(side_effect=lambda k, d=None: res_data.get(k, d))
+    mock_res.__iter__ = Mock(return_value=iter(res_data["DATA"]))
+    return mock_res
+
+
 def test_format_search_response():
+    config = TransferConfig(source_whitelist=None, destination_whitelist=None)
+
     res_data: dict[str, Any] = {
         "limit": random.randint(1, 1000),
         "offset": random.randint(0, 1000),
@@ -161,16 +173,12 @@ def test_format_search_response():
             }
         )
 
-    mock_res = Mock(spec=IterableTransferResponse)
-    mock_res.__getitem__ = Mock(side_effect=lambda k: res_data[k])
-    mock_res.get = Mock(side_effect=lambda k, d=None: res_data.get(k, d))
-    mock_res.__iter__ = Mock(return_value=iter(res_data["DATA"]))
-
-    res = _format_search_response(mock_res)
+    res = _format_search_response(_mock_search_response(res_data), config)
 
     assert res.limit == res_data["limit"]
     assert res.offset == res_data["offset"]
     assert res.has_next_page == res_data["has_next_page"]
+    assert len(res.data) == len(res_data["DATA"])
     for idx, ep in enumerate(res.data):
         ep_data = res_data["DATA"][idx]
         assert ep.endpoint_id == ep_data["id"]
@@ -179,6 +187,60 @@ def test_format_search_response():
         assert ep.owner_string == ep_data["owner_string"]
         assert ep.type == ep_data["entity_type"]
         assert ep.description == ep_data["description"]
+        # No allowlist configured: every collection is usable in every role.
+        assert ep.allowed_as_source is True
+        assert ep.allowed_as_destination is True
+
+
+def test_format_search_response_marks_usability_without_filtering():
+    source_only = str(uuid.uuid4())  # allowed as source only
+    dest_only = str(uuid.uuid4())  # allowed as destination only
+    both = str(uuid.uuid4())  # allowed as both
+    neither = str(uuid.uuid4())  # allowed as neither -> still returned, flagged False/False
+
+    config = TransferConfig(
+        source_whitelist=(source_only, both),
+        destination_whitelist=(dest_only, both),
+    )
+
+    res_data: dict[str, Any] = {
+        "limit": 100,
+        "offset": 0,
+        "has_next_page": False,
+        "DATA": [
+            {
+                "id": cid,
+                "display_name": random_string(),
+                "owner_id": str(uuid.uuid4()),
+                "owner_string": random_string(),
+                "entity_type": random_string(),
+                "description": None,
+            }
+            for cid in (source_only, dest_only, both, neither)
+        ],
+    }
+
+    res = _format_search_response(_mock_search_response(res_data), config)
+
+    # Nothing is filtered out — every upstream result is still returned, and pagination
+    # fields (limit/offset/has_next_page) continue to describe the unmodified upstream page.
+    returned_ids = {ep.endpoint_id: ep for ep in res.data}
+    assert set(returned_ids) == {source_only, dest_only, both, neither}
+    assert res.limit == res_data["limit"]
+    assert res.offset == res_data["offset"]
+    assert res.has_next_page == res_data["has_next_page"]
+
+    assert returned_ids[source_only].allowed_as_source is True
+    assert returned_ids[source_only].allowed_as_destination is False
+
+    assert returned_ids[dest_only].allowed_as_source is False
+    assert returned_ids[dest_only].allowed_as_destination is True
+
+    assert returned_ids[both].allowed_as_source is True
+    assert returned_ids[both].allowed_as_destination is True
+
+    assert returned_ids[neither].allowed_as_source is False
+    assert returned_ids[neither].allowed_as_destination is False
 
 
 def test_globus_transfer_list_collections(
@@ -205,7 +267,9 @@ def test_globus_transfer_list_collections(
         limit=limit,
         offset=offset,
     )
-    mock_format_search_res.assert_called_once_with(search_res)
+    mock_format_search_res.assert_called_once_with(
+        search_res, mock_ctx.request_context.lifespan_context.config.transfer
+    )
     assert res == formatted_res
 
 
@@ -245,7 +309,9 @@ def test_globus_transfer_search_collections(
         limit=limit,
         offset=offset,
     )
-    mock_format_search_res.assert_called_once_with(search_res)
+    mock_format_search_res.assert_called_once_with(
+        search_res, mock_ctx.request_context.lifespan_context.config.transfer
+    )
     assert res == formatted_res
 
 
@@ -353,6 +419,37 @@ def test_globus_transfer_submit_file_transfer_task_api_error(
         )
 
 
+def test_globus_transfer_submit_file_transfer_task_disallowed_source(
+    mock_ctx: Mock, mock_client: Mock, mock_handle_gare: Mock
+):
+    set_restricted_config(mock_ctx, source=(str(uuid.uuid4()),))
+    with pytest.raises(ToolError, match="not permitted as a source collection"):
+        globus_transfer_submit_file_transfer_task(
+            source_collection_id=str(uuid.uuid4()),
+            destination_collection_id=str(uuid.uuid4()),
+            items=[TransferItem(source_path=random_string(), destination_path=random_string())],
+            ctx=mock_ctx,
+        )
+    mock_handle_gare.assert_not_called()
+
+
+def test_globus_transfer_submit_file_transfer_task_disallowed_destination(
+    mock_ctx: Mock, mock_client: Mock, mock_handle_gare: Mock
+):
+    source_collection_id = str(uuid.uuid4())
+    set_restricted_config(
+        mock_ctx, source=(source_collection_id,), destination=(str(uuid.uuid4()),)
+    )
+    with pytest.raises(ToolError, match="not permitted as a destination collection"):
+        globus_transfer_submit_file_transfer_task(
+            source_collection_id=source_collection_id,
+            destination_collection_id=str(uuid.uuid4()),
+            items=[TransferItem(source_path=random_string(), destination_path=random_string())],
+            ctx=mock_ctx,
+        )
+    mock_handle_gare.assert_not_called()
+
+
 def test_globus_transfer_get_task_events(mock_ctx: Mock, mock_client: Mock):
     task_id = str(uuid.uuid4())
 
@@ -452,6 +549,62 @@ def test_globus_transfer_list_directory_contents_api_error(mock_ctx: Mock, mock_
         globus_transfer_list_directory_contents(
             collection_id=str(uuid.uuid4()), path=random_string(), limit=100, offset=0, ctx=mock_ctx
         )
+
+
+def test_globus_transfer_list_directory_contents_disallowed_collection(
+    mock_ctx: Mock, mock_client: Mock
+):
+    set_restricted_config(mock_ctx, source=(str(uuid.uuid4()),))
+    with pytest.raises(ToolError, match="not permitted as a source collection"):
+        globus_transfer_list_directory_contents(
+            collection_id=str(uuid.uuid4()), path=random_string(), limit=100, offset=0, ctx=mock_ctx
+        )
+    mock_client.operation_ls.assert_not_called()
+
+
+def test_globus_transfer_stat_path(mock_ctx: Mock, mock_client: Mock):
+    collection_id = str(uuid.uuid4())
+    path = random_string()
+    file_data: dict[str, Any] = {
+        "name": random_string(),
+        "type": random_string(),
+        "link_target": random_string(),
+        "user": random_string(),
+        "group": random_string(),
+        "permissions": random_string(),
+        "size": random.randint(1, 1000),
+        "last_modified": random_string(),
+    }
+    mock_client.operation_stat.return_value = file_data
+
+    res = globus_transfer_stat_path(collection_id=collection_id, path=path, ctx=mock_ctx)
+
+    mock_client.operation_stat.assert_called_once_with(collection_id, path=path)
+    assert res.name == file_data["name"]
+    assert res.type == file_data["type"]
+    assert res.link_target == file_data["link_target"]
+    assert res.user == file_data["user"]
+    assert res.group == file_data["group"]
+    assert res.permissions == file_data["permissions"]
+    assert res.size == file_data["size"]
+    assert res.last_modified == file_data["last_modified"]
+
+
+def test_globus_transfer_stat_path_api_error(mock_ctx: Mock, mock_client: Mock):
+    mock_client.operation_stat.side_effect = GlobusAPIError(r=MagicMock())
+    with pytest.raises(ToolError, match="Failed to stat path"):
+        globus_transfer_stat_path(
+            collection_id=str(uuid.uuid4()), path=random_string(), ctx=mock_ctx
+        )
+
+
+def test_globus_transfer_stat_path_disallowed_collection(mock_ctx: Mock, mock_client: Mock):
+    set_restricted_config(mock_ctx, source=(str(uuid.uuid4()),))
+    with pytest.raises(ToolError, match="not permitted as a source collection"):
+        globus_transfer_stat_path(
+            collection_id=str(uuid.uuid4()), path=random_string(), ctx=mock_ctx
+        )
+    mock_client.operation_stat.assert_not_called()
 
 
 def test_globus_transfer_get_task_status(mock_ctx: Mock, mock_client: Mock):

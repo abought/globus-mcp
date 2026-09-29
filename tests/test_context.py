@@ -4,6 +4,7 @@ import pytest
 from globus_sdk import UserApp
 from mcp.server.mcpserver import MCPServer
 
+from globus_mcp.core.config import ServerConfig
 from globus_mcp.core.context import GlobusContext, lifespan
 
 
@@ -17,5 +18,6 @@ async def test_lifespan_yields_globus_context():
             assert isinstance(context, GlobusContext)
             assert context.app is mock_app
             assert isinstance(context.server_session_id, str) and context.server_session_id
+            assert isinstance(context.config, ServerConfig)
             assert context.transfer_client is None
             assert context.compute_client is None

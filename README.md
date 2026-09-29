@@ -12,8 +12,17 @@ access to
 - `globus_transfer_search_collections` - Use a filter string to search all endpoints
 and collections that are visible to the user
 - `globus_transfer_submit_file_transfer_task` - Submit a transfer task between two collections
+- `globus_transfer_get_task_status` - Get the status and progress of a transfer task
 - `globus_transfer_get_task_events` - Get a list of task events
 - `globus_transfer_list_directory_contents` - List contents of a directory on a collection
+- `globus_transfer_stat_path` - Get metadata for a file or directory on a collection
+- `globus_transfer_direct_read_content` - Read a small file directly from a collection via HTTPS
+- `globus_transfer_direct_upload_content_via_https` - Upload small content directly to a
+  collection via HTTPS
+- `globus_transfer_upload_file_via_https` - Write a local file to a collection via HTTPS
+  (requires `FILESYSTEM_ROOT`)
+- `globus_transfer_download_file_via_https` - Download a file from a collection via HTTPS
+  (requires `FILESYSTEM_ROOT`)
 
 ### [Globus Compute](https://docs.globus.org/compute/)
 
@@ -101,6 +110,31 @@ When `FILESYSTEM_ROOT` is set the server registers `mcp_get_shared_mount_locatio
 > at the same absolute path inside the sandbox. The MCP server cannot verify agent-side
 > accessibility — use `mcp_get_shared_mount_location` and confirm the path is reachable before
 > relying on file-based workflows.
+
+### Resource restriction whitelists
+In many cases, the Globus permissions model means that a service token is allowed to use all resources available to the user: eg all transfer collections. 
+
+For compliance or data usage agreement reasons, it is sometimes useful to draw narrower boundaries around what a specific LLM can access. 
+
+Operations in this MCP server may be configured to only work with a whitelist of allowed resources (for transfer, the source and destination whitelists are controlled separately). This is helpful for meeting compliance and security control requirements. This is orthogonal to permissions controls; it simply prevents the LLM from attempting an operation at all.
+
+This feature is active when `GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS` and/or
+`GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS` are set to a comma-separated list of collection IDs:
+
+```json
+{
+  "mcpServers": {
+    "globus-mcp": {
+      "command": "uvx",
+      "args": ["globus-mcp", "--transfer", "read", "operate"],
+      "env": {
+        "GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS": "aaaaaaaa-...",
+        "GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS": "bbbbbbbb-...,cccccccc-..."
+      }
+    }
+  }
+}
+```
 
 ## Development
 See the included `Makefile` for development commands.

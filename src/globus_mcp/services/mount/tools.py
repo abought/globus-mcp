@@ -23,7 +23,7 @@ def mcp_get_shared_mount_location(
      is readable before performing any filesystem operations.  Warn the user if config changes
      are needed.
     """
-    filesystem_root = ctx.request_context.lifespan_context.filesystem_root
+    filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration
     log_tool_call(ctx, tool_name=mcp_get_shared_mount_location.__name__, service=_SERVICE)
     log_tool_result(

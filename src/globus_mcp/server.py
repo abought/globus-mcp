@@ -7,8 +7,8 @@ from mcp.server.mcpserver import MCPServer
 
 from globus_mcp.core.audit import configure_audit_logging
 from globus_mcp.core.categories import DEFAULT_CATEGORIES, ToolCategory
+from globus_mcp.core.config import load_server_config
 from globus_mcp.core.context import lifespan
-from globus_mcp.core.filesystem import resolve_filesystem_root
 from globus_mcp.services.auth.tools import globus_auth_whoami
 from globus_mcp.services.compute.registry import register_compute
 from globus_mcp.services.mount.tools import mcp_get_shared_mount_location
@@ -78,16 +78,23 @@ def resolve_categories(
 def main() -> None:
     configure_audit_logging()
     mcp.add_tool(globus_auth_whoami)
+
     try:
-        if resolve_filesystem_root() is not None:
-            mcp.add_tool(mcp_get_shared_mount_location)
-    except ValueError as e:
-        sys.exit(f"Invalid FILESYSTEM_ROOT configuration: {e}")
+        config = load_server_config()
+    except ExceptionGroup as eg:
+        sys.exit("Invalid server configuration:\n" + "\n".join(str(e) for e in eg.exceptions))
+
+    if config.filesystem_root is not None:
+        mcp.add_tool(mcp_get_shared_mount_location)
+
     args = parse_arguments()
     for service, register in service_registry.items():
         categories = resolve_categories(getattr(args, service))
         if categories is not None:
-            register(mcp, categories)
+            try:
+                register(mcp, categories)
+            except ValueError as e:
+                sys.exit(f"Invalid configuration for --{service}: {e}")
 
     mcp.run(transport="stdio")
 

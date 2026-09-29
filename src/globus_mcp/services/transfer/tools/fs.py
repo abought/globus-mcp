@@ -11,6 +11,7 @@ from globus_mcp.core.audit import log_tool_call, log_tool_error
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas.fs import TransferFile, TransferFileList
+from globus_mcp.services.transfer.whitelist import check_source_allowed
 
 _SERVICE = "transfer"
 
@@ -31,10 +32,21 @@ def globus_transfer_list_directory_contents(
 ) -> TransferFileList:
     """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
     log_tool_call(ctx, tool_name=globus_transfer_list_directory_contents.__name__, service=_SERVICE)
+    try:
+        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_list_directory_contents.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
+
     client = get_transfer_client(ctx)
 
     try:
-        # TODO: Expose filter param in the future when a clean LLM-facing syntax is defined
+        # TODO: Expose file filter param in the future when a clean LLM-facing syntax is defined
         res = client.operation_ls(
             collection_id, path=path, limit=limit, offset=offset, show_hidden=show_hidden
         )
@@ -77,6 +89,14 @@ def globus_transfer_stat_path(
     Raises an error if the path does not exist.
     """
     log_tool_call(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE)
+    try:
+        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
+    except ValueError as e:
+        log_tool_error(
+            ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e
+        )
+        raise ToolError(str(e)) from e
+
     client = get_transfer_client(ctx)
 
     try:

@@ -21,6 +21,7 @@ from globus_mcp.services.transfer.schemas import (
     HttpsFileUploadResponse,
     HttpsUploadResponse,
 )
+from globus_mcp.services.transfer.whitelist import check_destination_allowed, check_source_allowed
 
 _SERVICE = "transfer"
 _LLM_MAX_BYTES = 1 * 1024 * 1024  # 1 MiB — fits comfortably in LLM context
@@ -84,7 +85,12 @@ def _get_https_auth_header(
     https_scope = GCSCollectionScopeBuilder(collection_id).https
     globus_ctx.app.add_scope_requirements({collection_id: https_scope})
     authorizer = globus_ctx.app.get_authorizer(collection_id)
-    return https_base_url, authorizer.get_authorization_header()
+    auth_header = authorizer.get_authorization_header()
+    if auth_header is None:
+        raise ToolError(
+            f"Failed to obtain an authorization header for collection {collection_id!r}"
+        )
+    return https_base_url, auth_header
 
 
 def _iter_file(path: Path) -> Iterator[bytes]:
@@ -121,15 +127,27 @@ def globus_transfer_direct_upload_content_via_https(
     """
     Upload content directly to a file in a Globus collection via HTTPS.
 
+    Convenience helper: Most globus transfers require both a source and a destination collection.
+      Some collections allow direct file upload (via https) without a source collection.
 
-
-    Accepts content from the LLM context. Limited to 1 MiB; use
-    `globus_transfer_upload_file_via_https` to upload a larger local file, or
-    `globus_transfer_submit_file_transfer_task` to transfer between two collections.
-    Requires the collection to have HTTPS access enabled. Does not overwrite an
-    existing file at dest_path; raises a ToolError if one is already present.
+    Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
+      larger files or folders. Does not overwrite existing files.
     """
-    log_tool_call(ctx, tool_name=globus_transfer_direct_upload_content_via_https.__name__, service=_SERVICE)
+    log_tool_call(
+        ctx, tool_name=globus_transfer_direct_upload_content_via_https.__name__, service=_SERVICE
+    )
+    try:
+        check_destination_allowed(
+            ctx.request_context.lifespan_context.config.transfer, collection_id
+        )
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_direct_upload_content_via_https.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
 
     if encoding == "base64":
         try:
@@ -243,6 +261,16 @@ def globus_transfer_direct_read_content(
     log_tool_call(
         ctx, tool_name=globus_transfer_direct_read_content.__name__, service=_SERVICE
     )
+    try:
+        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_direct_read_content.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
 
     try:
         https_base_url, auth_header = _get_https_auth_header(ctx, collection_id)
@@ -351,13 +379,25 @@ def globus_transfer_upload_file_via_https(
       Some collections allow direct file upload (via https) without a source collection.
 
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
-      larger files or folders.
+      larger files or folders. Does not overwrite existing files.
     """
     log_tool_call(
         ctx, tool_name=globus_transfer_upload_file_via_https.__name__, service=_SERVICE
     )
+    try:
+        check_destination_allowed(
+            ctx.request_context.lifespan_context.config.transfer, collection_id
+        )
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_upload_file_via_https.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
 
-    filesystem_root = ctx.request_context.lifespan_context.filesystem_root
+    filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration
 
     try:
@@ -499,8 +539,18 @@ def globus_transfer_download_file_via_https(
     log_tool_call(
         ctx, tool_name=globus_transfer_download_file_via_https.__name__, service=_SERVICE
     )
+    try:
+        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_download_file_via_https.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
 
-    filesystem_root = ctx.request_context.lifespan_context.filesystem_root
+    filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration
 
     # Resolve the local destination, always enforcing root confinement.
@@ -551,12 +601,12 @@ def globus_transfer_download_file_via_https(
                     )
                 try:
                     f = local_file.open(file_mode)
-                except FileExistsError:
+                except FileExistsError as e:
                     raise ToolError(
                         f"Local file already exists:"
                         f" {str(local_file.relative_to(filesystem_root))!r}."
                         " Set overwrite=True to replace it."
-                    )
+                    ) from e
                 try:
                     with f:
                         for chunk in response.iter_bytes():

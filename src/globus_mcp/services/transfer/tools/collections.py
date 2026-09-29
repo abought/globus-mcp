@@ -12,21 +12,30 @@ from pydantic import Field
 from globus_mcp.core.audit import log_tool_call, log_tool_error
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
-from globus_mcp.services.transfer.schemas.collections import TransferCollectionList, TransferEndpoint
+from globus_mcp.services.transfer.config import TransferConfig
+from globus_mcp.services.transfer.schemas.collections import (
+    TransferCollection,
+    TransferCollectionList,
+)
+from globus_mcp.services.transfer.whitelist import check_destination_allowed, check_source_allowed
 
 _SERVICE = "transfer"
 
 
-def _format_search_response(res: globus_sdk.IterableTransferResponse) -> TransferCollectionList:
+def _format_search_response(
+    res: globus_sdk.IterableTransferResponse, transfer_config: TransferConfig
+) -> TransferCollectionList:
     endpoints = []
     for e in res["DATA"]:
-        endpoint = TransferEndpoint(
+        endpoint = TransferCollection(
             endpoint_id=e["id"],
             display_name=e["display_name"],
             owner_id=e["owner_id"],
             owner_string=e["owner_string"],
             type=e["entity_type"],
             description=e.get("description"),
+            allowed_as_source=check_source_allowed(transfer_config, e["id"], err=False),
+            allowed_as_destination=check_destination_allowed(transfer_config, e["id"], err=False),
         )
         endpoints.append(endpoint)
     return TransferCollectionList(
@@ -65,7 +74,12 @@ def globus_transfer_list_collections(
     *,
     ctx: Context[GlobusContext],
 ) -> TransferCollectionList:
-    """List Globus Transfer collections (storage locations) that the user has access to."""
+    """
+    List Globus Transfer collections (storage locations) that the user has access to.
+
+    Not every collection will be usable by this MCP server.
+        Check `allowed_as_source` / `allowed_as_destination`
+    """
     log_tool_call(ctx, tool_name=globus_transfer_list_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
@@ -81,7 +95,7 @@ def globus_transfer_list_collections(
         )
         raise ToolError(f"Failed to get search results: {e}") from e
 
-    return _format_search_response(res)
+    return _format_search_response(res, ctx.request_context.lifespan_context.config.transfer)
 
 
 def globus_transfer_search_collections(
@@ -96,6 +110,9 @@ def globus_transfer_search_collections(
 ) -> TransferCollectionList:
     """
     Find any (user-visible) Globus collection where any field matches the specified filter string.
+
+    Not every collection will be usable by this MCP server.
+        Check `allowed_as_source` / `allowed_as_destination`
     """
     log_tool_call(ctx, tool_name=globus_transfer_search_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
@@ -114,4 +131,4 @@ def globus_transfer_search_collections(
         )
         raise ToolError(f"Failed to get search results: {e}") from e
 
-    return _format_search_response(res)
+    return _format_search_response(res, ctx.request_context.lifespan_context.config.transfer)

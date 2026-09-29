@@ -1,7 +1,7 @@
 from globus_mcp.services.transfer.schemas.base import PaginationMixin
 from globus_mcp.services.transfer.schemas.collections import (
+    TransferCollection,
     TransferCollectionList,
-    TransferEndpoint,
 )
 from globus_mcp.services.transfer.schemas.fs import TransferFile, TransferFileList
 from globus_mcp.services.transfer.schemas.https import (
@@ -25,7 +25,7 @@ __all__ = [
     "HttpsUploadResponse",
     "PaginationMixin",
     "TransferCollectionList",
-    "TransferEndpoint",
+    "TransferCollection",
     "TransferEvent",
     "TransferEventList",
     "TransferFile",

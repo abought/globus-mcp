@@ -17,6 +17,7 @@ from globus_mcp.services.transfer.schemas.tasks import (
     TransferSubmitResponse,
     TransferTask,
 )
+from globus_mcp.services.transfer.whitelist import check_destination_allowed, check_source_allowed
 
 _SERVICE = "transfer"
 
@@ -92,6 +93,19 @@ def globus_transfer_submit_file_transfer_task(
     log_tool_call(
         ctx, tool_name=globus_transfer_submit_file_transfer_task.__name__, service=_SERVICE
     )
+    transfer_config = ctx.request_context.lifespan_context.config.transfer
+    try:
+        check_source_allowed(transfer_config, source_collection_id)
+        check_destination_allowed(transfer_config, destination_collection_id)
+    except ValueError as e:
+        log_tool_error(
+            ctx,
+            tool_name=globus_transfer_submit_file_transfer_task.__name__,
+            service=_SERVICE,
+            error=e,
+        )
+        raise ToolError(str(e)) from e
+
     client = get_transfer_client(ctx)
 
     data = globus_sdk.TransferData(

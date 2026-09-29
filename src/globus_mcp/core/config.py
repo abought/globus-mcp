@@ -1,6 +1,7 @@
 """
 Server configuration, set via env vars
 """
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import TypeVar
 from pydantic import ValidationError
 
 from globus_mcp.core.filesystem import resolve_filesystem_root
+from globus_mcp.services.search.config import SearchConfig
 from globus_mcp.services.transfer.config import TransferConfig
 
 T = TypeVar("T")
@@ -18,6 +20,7 @@ T = TypeVar("T")
 class ServerConfig:
     filesystem_root: Path | None
     transfer: TransferConfig
+    search: SearchConfig
 
 
 def load_server_config() -> ServerConfig:
@@ -32,9 +35,11 @@ def load_server_config() -> ServerConfig:
 
     filesystem_root = _load(resolve_filesystem_root)
     transfer = _load(TransferConfig)
+    search = _load(SearchConfig)
 
     if errors:
         raise ExceptionGroup("Invalid server configuration", errors)
 
     assert transfer is not None
-    return ServerConfig(filesystem_root=filesystem_root, transfer=transfer)
+    assert search is not None
+    return ServerConfig(filesystem_root=filesystem_root, transfer=transfer, search=search)

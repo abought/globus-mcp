@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
 from globus_compute_sdk import Client
-from globus_sdk import GlobusApp, TransferClient
+from globus_sdk import GlobusApp, SearchClient, TransferClient
 from mcp.server.mcpserver import MCPServer
 
 from globus_mcp.core.auth import get_globus_app
@@ -18,6 +18,7 @@ class GlobusContext:
     config: ServerConfig = field(default_factory=load_server_config)
     transfer_client: TransferClient | None = None
     compute_client: Client | None = None
+    search_client: SearchClient | None = None
 
 
 @asynccontextmanager

@@ -3,6 +3,7 @@ import string
 from unittest.mock import Mock
 
 from globus_mcp.core.config import ServerConfig
+from globus_mcp.services.search.config import SearchConfig
 from globus_mcp.services.transfer.config import TransferConfig
 
 
@@ -16,9 +17,11 @@ def set_restricted_config(
     *,
     source: tuple[str, ...] | None = None,
     destination: tuple[str, ...] | None = None,
+    search: tuple[str, ...] | None = None,
 ) -> None:
     """Replace a mock_ctx's ServerConfig with one restricting the given whitelist(s)."""
     ctx.request_context.lifespan_context.config = ServerConfig(
         filesystem_root=None,
         transfer=TransferConfig(source_whitelist=source, destination_whitelist=destination),
+        search=SearchConfig(whitelist=search),
     )

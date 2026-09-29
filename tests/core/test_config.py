@@ -10,6 +10,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("FILESYSTEM_ROOT", raising=False)
     monkeypatch.delenv("GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS", raising=False)
     monkeypatch.delenv("GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS", raising=False)
+    monkeypatch.delenv("GLOBUS_SEARCH_ALLOWED_INDICES", raising=False)
 
 
 def test_load_server_config_defaults():
@@ -18,11 +19,10 @@ def test_load_server_config_defaults():
     assert config.filesystem_root is None
     assert config.transfer.source_whitelist is None
     assert config.transfer.destination_whitelist is None
+    assert config.search.whitelist is None
 
 
-def test_load_server_config_reads_filesystem_root(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+def test_load_server_config_reads_filesystem_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     root = tmp_path / "shared"
     root.mkdir()
     monkeypatch.setenv("FILESYSTEM_ROOT", str(root))

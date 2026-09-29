@@ -118,8 +118,15 @@ For compliance or data usage agreement reasons, it is sometimes useful to draw n
 
 Operations in this MCP server may be configured to only work with a whitelist of allowed resources (for transfer, the source and destination whitelists are controlled separately). This is helpful for meeting compliance and security control requirements. This is orthogonal to permissions controls; it simply prevents the LLM from attempting an operation at all.
 
-This feature is active when `GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS` and/or
-`GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS` are set to a comma-separated list of collection IDs:
+A list of Globus resource UUIDs may be set (as a comma-delimited string) for the following services:
+
+* Transfer
+  * `GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS`
+  * `GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS` 
+* Search
+  * `GLOBUS_SEARCH_ALLOWED_INDICES`
+
+In the example below, transfer allows operations from any source collection, but only a select list of destination collections:
 
 ```json
 {
@@ -128,7 +135,6 @@ This feature is active when `GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS` and/or
       "command": "uvx",
       "args": ["globus-mcp", "--transfer", "read", "operate"],
       "env": {
-        "GLOBUS_TRANSFER_ALLOWED_SOURCE_COLLECTIONS": "aaaaaaaa-...",
         "GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS": "bbbbbbbb-...,cccccccc-..."
       }
     }

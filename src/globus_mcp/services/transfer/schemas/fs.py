@@ -5,7 +5,12 @@ from globus_mcp.services.transfer.schemas.base import PaginationMixin
 
 class TransferFile(BaseModel):
     name: str = Field(description="Name of the file")
-    type: str = Field(description="The type of the entry: file, dir, chr, blk, pipe, or other. For symlinks the type reflects the target.")
+    type: str = Field(
+        description=(
+            "The type of the entry: file, dir, chr, blk, pipe, or other."
+            " For symlinks the type reflects the target."
+        )
+    )
     link_target: str | None = Field(
         default=None,
         description=(

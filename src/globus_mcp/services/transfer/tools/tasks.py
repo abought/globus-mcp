@@ -116,7 +116,6 @@ def globus_transfer_submit_file_transfer_task(
         sync_level=sync_level,
         verify_checksum=verify_checksum,
         skip_source_errors=skip_source_errors,  # real transfers may have partial failures
-
         # Hardcoded policies for LLM usage: make actions and failures obvious
         encrypt_data=True,
         fail_on_quota_errors=True,  # LLM can't intervene to fix out of band

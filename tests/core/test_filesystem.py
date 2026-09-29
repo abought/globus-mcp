@@ -28,7 +28,6 @@ class TestOverlaps:
         assert fs._overlaps(a, b) is False
 
 
-
 class TestHiddenSegment:
     def test_no_hidden_segment_returns_none(self):
         assert fs._hidden_segment(Path("/data/results/file.txt")) is None
@@ -217,9 +216,7 @@ class TestResolveLocalPath:
             pytest.param("sub/.git/config", id="hidden_dir_nested"),
         ],
     )
-    def test_hidden_segment_rejected(
-        self, tmp_path: Path, relative: str
-    ):
+    def test_hidden_segment_rejected(self, tmp_path: Path, relative: str):
         with pytest.raises(ValueError, match="hidden file or directory"):
             fs.resolve_local_path(tmp_path, relative)
 

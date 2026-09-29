@@ -28,9 +28,7 @@ def check_destination_allowed(
     If err is True (default), raise ValueError when not permitted. If err is False, never
     raise — just return the bool.
     """
-    allowed = (
-        config.destination_whitelist is None or collection_id in config.destination_whitelist
-    )
+    allowed = config.destination_whitelist is None or collection_id in config.destination_whitelist
     if not allowed and err:
         raise ValueError(
             f"Collection {collection_id!r} is not permitted as a destination collection."

@@ -17,17 +17,13 @@ from tests.utils import random_string, set_restricted_config
 @pytest.fixture
 def mock_client():
     mc = Mock(spec=TransferClient)
-    with patch(
-        "globus_mcp.services.transfer.tools.https.get_transfer_client", return_value=mc
-    ):
+    with patch("globus_mcp.services.transfer.tools.https.get_transfer_client", return_value=mc):
         yield mc
 
 
 @pytest.fixture
 def mock_https_auth_header():
-    with patch(
-        "globus_mcp.services.transfer.tools.https._get_https_auth_header"
-    ) as mocked:
+    with patch("globus_mcp.services.transfer.tools.https._get_https_auth_header") as mocked:
         yield mocked
 
 

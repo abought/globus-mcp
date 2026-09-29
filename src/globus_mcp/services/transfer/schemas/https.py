@@ -9,9 +9,7 @@ class HttpsUploadResponse(BaseModel):
 
 
 class HttpsDownloadResponse(BaseModel):
-    content: str = Field(
-        description="File content, encoded as specified by the 'encoding' field"
-    )
+    content: str = Field(description="File content, encoded as specified by the 'encoding' field")
     encoding: Literal["utf-8", "base64"] = Field(
         description="Content encoding: 'utf-8' for text files, 'base64' for binary files"
     )

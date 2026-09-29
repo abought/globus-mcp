@@ -60,9 +60,7 @@ def _ensure_parent_dirs(
             raise
 
 
-def _get_https_auth_header(
-    ctx: Context[GlobusContext], collection_id: str
-) -> tuple[str, str]:
+def _get_https_auth_header(ctx: Context[GlobusContext], collection_id: str) -> tuple[str, str]:
     """
     Return (https_base_url, auth_header) for HTTPS operations on a collection.
 
@@ -220,9 +218,7 @@ def globus_transfer_direct_upload_content_via_https(
             service=_SERVICE,
             error=e,
         )
-        raise ToolError(
-            f"HTTPS upload failed ({e.response.status_code}): {e.response.text}"
-        ) from e
+        raise ToolError(f"HTTPS upload failed ({e.response.status_code}): {e.response.text}") from e
     except httpx2.RequestError as e:
         log_tool_error(
             ctx,
@@ -258,9 +254,7 @@ def globus_transfer_direct_read_content(
     Convenience helper: Most globus transfers require both a source and a destination collection.
       Some collections allow direct file access (via https) without a destination collection.
     """
-    log_tool_call(
-        ctx, tool_name=globus_transfer_direct_read_content.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_transfer_direct_read_content.__name__, service=_SERVICE)
     try:
         check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
     except ValueError as e:
@@ -381,9 +375,7 @@ def globus_transfer_upload_file_via_https(
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
       larger files or folders. Does not overwrite existing files.
     """
-    log_tool_call(
-        ctx, tool_name=globus_transfer_upload_file_via_https.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_transfer_upload_file_via_https.__name__, service=_SERVICE)
     try:
         check_destination_allowed(
             ctx.request_context.lifespan_context.config.transfer, collection_id
@@ -474,9 +466,7 @@ def globus_transfer_upload_file_via_https(
             service=_SERVICE,
             error=e,
         )
-        raise ToolError(
-            f"HTTPS upload failed ({e.response.status_code}): {e.response.text}"
-        ) from e
+        raise ToolError(f"HTTPS upload failed ({e.response.status_code}): {e.response.text}") from e
     except httpx2.RequestError as e:
         log_tool_error(
             ctx,
@@ -520,8 +510,7 @@ def globus_transfer_download_file_via_https(
         bool,
         Field(
             description=(
-                "If False (default), raise an error if the local destination file"
-                " already exists."
+                "If False (default), raise an error if the local destination file already exists."
             )
         ),
     ] = False,
@@ -536,9 +525,7 @@ def globus_transfer_download_file_via_https(
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
       larger files or folders.
     """
-    log_tool_call(
-        ctx, tool_name=globus_transfer_download_file_via_https.__name__, service=_SERVICE
-    )
+    log_tool_call(ctx, tool_name=globus_transfer_download_file_via_https.__name__, service=_SERVICE)
     try:
         check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
     except ValueError as e:
@@ -563,8 +550,7 @@ def globus_transfer_download_file_via_https(
         filename = PurePosixPath(source_path).name
         if not filename:
             raise ToolError(
-                "Cannot derive a local filename from source_path."
-                " Provide local_path explicitly."
+                "Cannot derive a local filename from source_path. Provide local_path explicitly."
             )
         try:
             local_file = resolve_local_path(filesystem_root, filename)

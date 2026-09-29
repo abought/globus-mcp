@@ -92,9 +92,7 @@ def globus_transfer_stat_path(
     try:
         check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
     except ValueError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e
-        )
+        log_tool_error(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e)
         raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
@@ -102,9 +100,7 @@ def globus_transfer_stat_path(
     try:
         f = client.operation_stat(collection_id, path=path)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e
-        )
+        log_tool_error(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e)
         raise ToolError(f"Failed to stat path: {e}") from e
 
     return TransferFile(

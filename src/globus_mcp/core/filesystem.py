@@ -1,12 +1,13 @@
 """
-Some MCP features involve data too big to load directly into LLM context. The solution is to share a path
-    between the MCP server and the LLM agent, so that one-off scripts can process data, and the MCP server can
-    directly access the results.  This is only allowed for locally deployed MCPs.
+Some MCP features involve data too big to load directly into LLM context. The solution is to share
+    a path between the MCP server and the LLM agent, so that one-off scripts can process data, and
+    the MCP server can directly access the results.  This is only allowed for locally deployed MCPs.
 
 This module implements some very basic safeguards to sanity-check that filesystem path.
-It is up to the user to validate their own configuration options, and to set up appropriate mount points
-    for container sandbox.
+It is up to the user to validate their own configuration options, and to set up appropriate mount
+    points for container sandbox.
 """
+
 import os
 import sys
 import tempfile
@@ -33,19 +34,28 @@ _PROTECTED_PATHS: tuple[Path, ...] = (
 # ---------------------------------------------------------------------------
 _FHS_SYSTEM_DIRS: tuple[str, ...] = (
     # Core POSIX / Linux FHS — binaries, libraries, system config, runtime
-    "/bin", "/sbin",
-    "/lib", "/lib32", "/lib64", "/libx32",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/libx32",
     "/usr",
     "/etc",
     "/boot",
-    "/dev", "/proc", "/sys",
+    "/dev",
+    "/proc",
+    "/sys",
     "/root",
     "/run",
     "/var",
     "/srv",
     "/opt",
     # macOS system hierarchy
-    "/System", "/Library", "/Applications", "/private",
+    "/System",
+    "/Library",
+    "/Applications",
+    "/private",
 )
 
 
@@ -106,9 +116,7 @@ def resolve_filesystem_root() -> Path | None:
     root = Path(raw).resolve()
 
     if root == Path("/"):
-        raise ValueError(
-            f"FILESYSTEM_ROOT must not be the filesystem root '/'. Got: {raw!r}"
-        )
+        raise ValueError(f"FILESYSTEM_ROOT must not be the filesystem root '/'. Got: {raw!r}")
 
     if not root.exists():
         raise ValueError(f"FILESYSTEM_ROOT path does not exist: {root}")

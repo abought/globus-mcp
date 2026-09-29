@@ -527,7 +527,11 @@ def test_globus_transfer_list_directory_contents(mock_ctx: Mock, mock_client: Mo
     )
 
     mock_client.operation_ls.assert_called_once_with(
-        collection_id, path=path, limit=res_data["limit"], offset=res_data["offset"], show_hidden=True
+        collection_id,
+        path=path,
+        limit=res_data["limit"],
+        offset=res_data["offset"],
+        show_hidden=True,
     )
     assert res.limit == res_data["limit"]
     assert res.offset == res_data["offset"]

@@ -12,6 +12,7 @@ from globus_mcp.core.context import lifespan
 from globus_mcp.services.auth.tools import globus_auth_whoami
 from globus_mcp.services.compute.registry import register_compute
 from globus_mcp.services.mount.tools import mcp_get_shared_mount_location
+from globus_mcp.services.search.registry import register_search
 from globus_mcp.services.transfer.registry import register_transfer
 
 SERVER_INSTRUCTIONS = """\
@@ -34,6 +35,7 @@ mcp = MCPServer(
 
 service_registry: dict[str, Callable[[MCPServer, Iterable[ToolCategory]], None]] = {
     "compute": register_compute,
+    "search": register_search,
     "transfer": register_transfer,
 }
 services = list(service_registry.keys())

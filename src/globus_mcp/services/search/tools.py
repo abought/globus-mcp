@@ -10,6 +10,7 @@ from globus_mcp.core.audit import audited, log_tool_result
 from globus_mcp.core.categories import ToolCategory
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.search.client import get_search_client
+from globus_mcp.services.search.projection import compile_field_patterns, select_fields
 from globus_mcp.services.search.schemas.indices import SearchIndex, SearchIndexFieldMapping
 from globus_mcp.services.search.schemas.query import Boost, Facet, Filter, Sort
 from globus_mcp.services.search.schemas.results import (
@@ -54,7 +55,10 @@ def _build_query_body(
     return {k: v for k, v in body.items() if v is not None}
 
 
-def _format_query_response(data: dict[str, Any]) -> SearchQueryResult:
+def _format_query_response(
+    data: dict[str, Any], only_fields: list[str] | None = None
+) -> SearchQueryResult:
+    patterns = compile_field_patterns(only_fields) if only_fields else None
     facet_results = None
     if "facet_results" in data:
         facet_results = [
@@ -78,7 +82,14 @@ def _format_query_response(data: dict[str, Any]) -> SearchQueryResult:
             SearchSubject(
                 subject=g["subject"],
                 entries=[
-                    SearchEntry(entry_id=e.get("entry_id"), content=e["content"])
+                    SearchEntry(
+                        entry_id=e.get("entry_id"),
+                        content=(
+                            e["content"]
+                            if patterns is None
+                            else select_fields(e["content"], patterns)
+                        ),
+                    )
                     for e in g["entries"]
                 ],
             )
@@ -160,6 +171,20 @@ def globus_search_query(
     sort: Annotated[
         list[Sort] | None, Field(description="Explicit result ordering, instead of relevance.")
     ] = None,
+    only_fields: Annotated[
+        list[str] | None,
+        Field(
+            min_length=1,
+            description=(
+                "Limit each entry's `content` to these fields, to keep responses small."
+                " Dotted paths into nested objects, eg `dc.titles.title`; `*` is a wildcard,"
+                " eg `dc.*`. Selecting an object returns everything under it. Paths that match"
+                " nothing are ignored, so an entry whose content has none of these fields comes"
+                " back with empty `content`: re-request with different or more fields."
+                " Omit to return full content. See `globus_search_get_index_field_mapping`."
+            ),
+        ),
+    ] = None,
     limit: Annotated[int, Field(ge=1, le=50, description="Maximum results to return.")] = 25,
     offset: Annotated[int, Field(ge=0, description="Zero based offset into the result set.")] = 0,
     *,
@@ -191,7 +216,7 @@ def globus_search_query(
     except globus_sdk.GlobusAPIError as e:
         raise ToolError(f"Search query failed: {e}") from e
 
-    result = _format_query_response(r.data)
+    result = _format_query_response(r.data, only_fields)
     log_tool_result(
         ctx,
         tool_name=globus_search_query.__name__,

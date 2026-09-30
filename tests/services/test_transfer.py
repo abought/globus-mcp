@@ -16,18 +16,22 @@ from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.config import TransferConfig
 from globus_mcp.services.transfer.registry import register_transfer
 from globus_mcp.services.transfer.schemas import TransferItem
-from globus_mcp.services.transfer.tools import (
-    TRANSFER_TOOLS_BY_CATEGORY,
+from globus_mcp.services.transfer.tools import TRANSFER_TOOLS_BY_CATEGORY
+from globus_mcp.services.transfer.tools.collections import (
+    _format_search_response,
+    globus_transfer_list_collections,
+    globus_transfer_search_collections,
+)
+from globus_mcp.services.transfer.tools.fs import (
+    globus_transfer_list_directory_contents,
+    globus_transfer_stat_path,
+)
+from globus_mcp.services.transfer.tools.tasks import (
+    _handle_gare,
     globus_transfer_get_task_events,
     globus_transfer_get_task_status,
-    globus_transfer_list_collections,
-    globus_transfer_list_directory_contents,
-    globus_transfer_search_collections,
-    globus_transfer_stat_path,
     globus_transfer_submit_file_transfer_task,
 )
-from globus_mcp.services.transfer.tools.collections import _format_search_response
-from globus_mcp.services.transfer.tools.tasks import _handle_gare
 from tests.utils import random_string, set_restricted_config
 
 

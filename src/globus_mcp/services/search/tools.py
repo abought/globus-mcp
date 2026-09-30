@@ -10,7 +10,7 @@ from globus_mcp.core.audit import audited, log_tool_result
 from globus_mcp.core.categories import ToolCategory
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.search.client import get_search_client
-from globus_mcp.services.search.schemas.indices import SearchIndex
+from globus_mcp.services.search.schemas.indices import SearchIndex, SearchIndexFieldMapping
 from globus_mcp.services.search.schemas.query import Boost, Facet, Filter, Sort
 from globus_mcp.services.search.schemas.results import (
     FacetBucket,
@@ -170,7 +170,8 @@ def globus_search_query(
 
     For advanced queries: nested fields are separated with `.`, eg `dc.title`.
 
-    Result fields are index-specific. See `__TODO__REFERENCE__` for index-specific field mappings.
+    Result fields are index-specific. See `globus_search_get_index_field_mapping` for index-specific
+    field mappings.
     """
     if q is None and not filters:
         raise ToolError("At least one of `q` or `filters` is required.")
@@ -200,8 +201,40 @@ def globus_search_query(
     return result
 
 
+@audited(_SERVICE)
+@search_whitelist("index_id")
+def globus_search_get_index_field_mapping(
+    index_id: Annotated[str, Field(description="ID of the search index")],
+    *,
+    ctx: Context[GlobusContext],
+) -> SearchIndexFieldMapping:
+    """
+    Get the field mappings (field name -> type) for a Globus Search index.
+
+    Use this to discover which fields can be used in queries, filters, facets and sorts
+    for a given index. Nested fields are separated with `.`, eg `dc.titles.title`.
+    """
+    client = get_search_client(ctx)
+
+    # Undocumented beta API: not wrapped by the SDK, so use the authenticated generic request.
+    try:
+        r = client.get(f"/beta/index/{index_id}/mapping")
+    except globus_sdk.GlobusAPIError as e:
+        raise ToolError(f"Field mapping unavailable for index {index_id!r}: {e}") from e
+
+    mappings = r.get("mappings")
+    if not isinstance(mappings, dict):
+        raise ToolError(f"Field mapping unavailable for index {index_id!r}: unexpected response")
+
+    return SearchIndexFieldMapping(index_id=index_id, mappings=mappings)
+
+
 SEARCH_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
-    ToolCategory.READ: [globus_search_list_indices, globus_search_query],
+    ToolCategory.READ: [
+        globus_search_list_indices,
+        globus_search_get_index_field_mapping,
+        globus_search_query,
+    ],
     ToolCategory.OPERATE: [],
     ToolCategory.ADMIN: [],
 }

@@ -7,7 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.core.audit import log_tool_call, log_tool_error, log_tool_result
+from globus_mcp.core.audit import audited, log_tool_result
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas.tasks import (
@@ -39,6 +39,7 @@ def _handle_gare(
         raise
 
 
+@audited(_SERVICE)
 def globus_transfer_submit_file_transfer_task(
     source_collection_id: Annotated[str, Field(description="UUID of the source collection")],
     destination_collection_id: Annotated[
@@ -90,20 +91,11 @@ def globus_transfer_submit_file_transfer_task(
 
     Use `globus_transfer_get_task_status` to monitor the task's progress.
     """
-    log_tool_call(
-        ctx, tool_name=globus_transfer_submit_file_transfer_task.__name__, service=_SERVICE
-    )
     transfer_config = ctx.request_context.lifespan_context.config.transfer
     try:
         check_source_allowed(transfer_config, source_collection_id)
         check_destination_allowed(transfer_config, destination_collection_id)
     except ValueError as e:
-        log_tool_error(
-            ctx,
-            tool_name=globus_transfer_submit_file_transfer_task.__name__,
-            service=_SERVICE,
-            error=e,
-        )
         raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
@@ -134,12 +126,6 @@ def globus_transfer_submit_file_transfer_task(
     try:
         res = _handle_gare(client.submit_transfer, data)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx,
-            tool_name=globus_transfer_submit_file_transfer_task.__name__,
-            service=_SERVICE,
-            error=e,
-        )
         raise ToolError(f"Failed to submit transfer: {e}") from e
 
     task_id = res.data["task_id"]
@@ -152,6 +138,7 @@ def globus_transfer_submit_file_transfer_task(
     return TransferSubmitResponse(task_id=task_id)
 
 
+@audited(_SERVICE)
 def globus_transfer_get_task_status(
     task_id: Annotated[str, Field(description="UUID of the transfer task")],
     *,
@@ -163,15 +150,11 @@ def globus_transfer_get_task_status(
     Use this to check whether a transfer has completed, and to monitor byte and file counts
         during an in-progress transfer.
     """
-    log_tool_call(ctx, tool_name=globus_transfer_get_task_status.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
         res = client.get_task(task_id)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_get_task_status.__name__, service=_SERVICE, error=e
-        )
         raise ToolError(f"Failed to get task status: {e}") from e
 
     d = res.data
@@ -194,6 +177,7 @@ def globus_transfer_get_task_status(
     return result
 
 
+@audited(_SERVICE)
 def globus_transfer_get_task_events(
     task_id: Annotated[str, Field(description="UUID of the task")],
     limit: Annotated[int, Field(le=1_000, description="Maximum number of results to return.")] = 10,
@@ -206,15 +190,11 @@ def globus_transfer_get_task_events(
 
     The events are ordered by time descending (newest first).
     """
-    log_tool_call(ctx, tool_name=globus_transfer_get_task_events.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
         res = client.task_event_list(task_id=task_id, limit=limit, offset=offset)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_get_task_events.__name__, service=_SERVICE, error=e
-        )
         raise ToolError(f"Failed to get task events: {e}") from e
 
     events = []

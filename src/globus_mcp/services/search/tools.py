@@ -6,7 +6,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from globus_mcp.core.audit import log_tool_call, log_tool_error, log_tool_result
+from globus_mcp.core.audit import audited, log_tool_result
 from globus_mcp.core.categories import ToolCategory
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.search.client import get_search_client
@@ -88,22 +88,19 @@ def _format_query_response(data: dict[str, Any]) -> SearchQueryResult:
     )
 
 
-def globus_search_list_indices(ctx: Context[GlobusContext]) -> list[SearchIndex]:
+@audited(_SERVICE)
+def globus_search_list_indices(*, ctx: Context[GlobusContext]) -> list[SearchIndex]:
     """
     List Globus Search indices visible to the current user.
 
     Not every index will be usable by this MCP server. Check `allowed` on each entry.
     """
-    log_tool_call(ctx, tool_name=globus_search_list_indices.__name__, service=_SERVICE)
     client = get_search_client(ctx)
     search_config = ctx.request_context.lifespan_context.config.search
 
     try:
         r = client.index_list()
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_search_list_indices.__name__, service=_SERVICE, error=e
-        )
         raise ToolError(f"Failed to list search indices: {e}") from e
 
     indices = []
@@ -128,6 +125,7 @@ def globus_search_list_indices(ctx: Context[GlobusContext]) -> list[SearchIndex]
     return indices
 
 
+@audited(_SERVICE)
 def globus_search_query(
     index_id: Annotated[str, Field(description="ID of the search index to query")],
     q: Annotated[
@@ -173,9 +171,11 @@ def globus_search_query(
 
     Result fields are index-specific. See `__TODO__REFERENCE__` for index-specific field mappings.
     """
-    log_tool_call(ctx, tool_name=globus_search_query.__name__, service=_SERVICE)
     search_config = ctx.request_context.lifespan_context.config.search
-    check_index_allowed(search_config, index_id)
+    try:
+        check_index_allowed(search_config, index_id)
+    except ValueError as e:
+        raise ToolError(str(e)) from e
     if q is None and not filters:
         raise ToolError("At least one of `q` or `filters` is required.")
 
@@ -192,7 +192,6 @@ def globus_search_query(
     try:
         r = client.post_search(index_id, body, limit=limit, offset=offset)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(ctx, tool_name=globus_search_query.__name__, service=_SERVICE, error=e)
         raise ToolError(f"Search query failed: {e}") from e
 
     result = _format_query_response(r.data)

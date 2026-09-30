@@ -1,12 +1,13 @@
 from mcp.server.mcpserver import Context
 
-from globus_mcp.core.audit import log_tool_call, log_tool_result
+from globus_mcp.core.audit import audited, log_tool_result
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.mount.schemas import SharedFilesystemLocation
 
 _SERVICE = "mount"
 
 
+@audited(_SERVICE)
 def mcp_get_shared_mount_location(
     *,
     ctx: Context[GlobusContext],
@@ -25,7 +26,6 @@ def mcp_get_shared_mount_location(
     """
     filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration
-    log_tool_call(ctx, tool_name=mcp_get_shared_mount_location.__name__, service=_SERVICE)
     log_tool_result(
         ctx,
         tool_name=mcp_get_shared_mount_location.__name__,

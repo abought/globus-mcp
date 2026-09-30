@@ -9,7 +9,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.core.audit import log_tool_call, log_tool_error
+from globus_mcp.core.audit import audited
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.config import TransferConfig
@@ -46,6 +46,7 @@ def _format_search_response(
     )
 
 
+@audited(_SERVICE)
 def globus_transfer_list_collections(
     filter_scope: Annotated[
         Literal[
@@ -80,7 +81,6 @@ def globus_transfer_list_collections(
     Not every collection will be usable by this MCP server.
         Check `allowed_as_source` / `allowed_as_destination`
     """
-    log_tool_call(ctx, tool_name=globus_transfer_list_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
@@ -90,14 +90,12 @@ def globus_transfer_list_collections(
             offset=offset,
         )
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_list_collections.__name__, service=_SERVICE, error=e
-        )
         raise ToolError(f"Failed to get search results: {e}") from e
 
     return _format_search_response(res, ctx.request_context.lifespan_context.config.transfer)
 
 
+@audited(_SERVICE)
 def globus_transfer_search_collections(
     filter_fulltext: Annotated[
         str,
@@ -114,7 +112,6 @@ def globus_transfer_search_collections(
     Not every collection will be usable by this MCP server.
         Check `allowed_as_source` / `allowed_as_destination`
     """
-    log_tool_call(ctx, tool_name=globus_transfer_search_collections.__name__, service=_SERVICE)
     client = get_transfer_client(ctx)
 
     try:
@@ -126,9 +123,6 @@ def globus_transfer_search_collections(
             offset=offset,
         )
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx, tool_name=globus_transfer_search_collections.__name__, service=_SERVICE, error=e
-        )
         raise ToolError(f"Failed to get search results: {e}") from e
 
     return _format_search_response(res, ctx.request_context.lifespan_context.config.transfer)

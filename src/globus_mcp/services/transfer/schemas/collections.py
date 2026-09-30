@@ -15,7 +15,6 @@ class TransferCollection(BaseModel):
     )
     allowed_as_destination: bool = Field(
         description="Whether this MCP server allows using this collection as a destination."
-
     )
 
 

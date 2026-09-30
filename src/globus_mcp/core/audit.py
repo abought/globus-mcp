@@ -1,11 +1,18 @@
+"""
+Helpers for structured audit logging
+"""
+
+import functools
 import json
 import logging
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, TextIO
 
 import globus_sdk
 from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError
 
 from globus_mcp.core.context import GlobusContext
 
@@ -26,6 +33,8 @@ audit_logger = logging.getLogger(_LOGGER_NAME)
 
 
 class _JsonlFormatter(logging.Formatter):
+    """All events are output as structured JSONL with specified fields"""
+
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(
@@ -150,7 +159,7 @@ def log_tool_error(
     *,
     tool_name: str,
     service: str,
-    error: Exception,
+    error: BaseException,
     include_globus_identity: bool = True,
 ) -> None:
     extra = _base_extra(
@@ -163,3 +172,56 @@ def log_tool_error(
     extra["error_type"] = type(error).__name__
     extra["error_message"] = str(error)
     audit_logger.error(f"Tool error in {tool_name}: {error}", extra=extra)
+
+
+def _root_cause(error: BaseException) -> BaseException:
+    """The innermost exception in a `raise ... from` chain (the error, if it has no cause)."""
+    seen = {id(error)}
+    while error.__cause__ is not None and id(error.__cause__) not in seen:
+        error = error.__cause__
+        seen.add(id(error))
+    return error
+
+
+def audited(
+    service: str, *, include_globus_identity: bool = True
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Tool decorator: Log all tool calls (and errors)
+
+    Requires access to server context as named argument `ctx`
+
+    Tool results are tool-specific, and not captured by this decorator.
+    """
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        tool_name = fn.__name__
+
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            ctx = kwargs["ctx"]
+            log_tool_call(
+                ctx,
+                tool_name=tool_name,
+                service=service,
+                include_globus_identity=include_globus_identity,
+            )
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                log_tool_error(
+                    ctx,
+                    tool_name=tool_name,
+                    service=service,
+                    error=_root_cause(e),
+                    include_globus_identity=include_globus_identity,
+                )
+                if isinstance(e, ToolError):
+                    raise
+                raise ToolError(
+                    f"Unexpected error in {tool_name}. Details are in the server audit log."
+                ) from e
+
+        return wrapper
+
+    return decorator

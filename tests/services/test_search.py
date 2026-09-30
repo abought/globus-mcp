@@ -14,7 +14,8 @@ def _list_indices(mock_ctx: Mock, ids: list[str]):
     client = Mock()
     client.index_list.return_value.data = {"index_list": [_index(i) for i in ids]}
     with patch("globus_mcp.services.search.tools.get_search_client", return_value=client):
-        return globus_search_list_indices(mock_ctx)
+        return globus_search_list_indices(ctx=mock_ctx)
+
 
 def test_list_indices_all_allowed_when_unrestricted(mock_ctx: Mock):
     ids = [str(uuid.uuid4()) for _ in range(3)]

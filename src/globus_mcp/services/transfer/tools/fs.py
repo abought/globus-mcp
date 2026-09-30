@@ -7,7 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from globus_mcp.core.audit import log_tool_call, log_tool_error
+from globus_mcp.core.audit import audited
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas.fs import TransferFile, TransferFileList
@@ -16,6 +16,7 @@ from globus_mcp.services.transfer.whitelist import check_source_allowed
 _SERVICE = "transfer"
 
 
+@audited(_SERVICE)
 def globus_transfer_list_directory_contents(
     collection_id: Annotated[str, Field(description="UUID of the collection")],
     path: Annotated[str, Field(description="Path to a directory")],
@@ -31,16 +32,9 @@ def globus_transfer_list_directory_contents(
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
     """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
-    log_tool_call(ctx, tool_name=globus_transfer_list_directory_contents.__name__, service=_SERVICE)
     try:
         check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
     except ValueError as e:
-        log_tool_error(
-            ctx,
-            tool_name=globus_transfer_list_directory_contents.__name__,
-            service=_SERVICE,
-            error=e,
-        )
         raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
@@ -51,12 +45,6 @@ def globus_transfer_list_directory_contents(
             collection_id, path=path, limit=limit, offset=offset, show_hidden=show_hidden
         )
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(
-            ctx,
-            tool_name=globus_transfer_list_directory_contents.__name__,
-            service=_SERVICE,
-            error=e,
-        )
         raise ToolError(f"Failed to list directory contents: {e}") from e
 
     files = []
@@ -76,6 +64,7 @@ def globus_transfer_list_directory_contents(
     return TransferFileList(limit=limit, offset=offset, data=files)
 
 
+@audited(_SERVICE)
 def globus_transfer_stat_path(
     collection_id: Annotated[str, Field(description="UUID of the collection")],
     path: Annotated[str, Field(description="Path to a file or directory")],
@@ -88,11 +77,9 @@ def globus_transfer_stat_path(
     Useful for checking existence or confirming a path's type before running a transfer.
     Raises an error if the path does not exist.
     """
-    log_tool_call(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE)
     try:
         check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
     except ValueError as e:
-        log_tool_error(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e)
         raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
@@ -100,7 +87,6 @@ def globus_transfer_stat_path(
     try:
         f = client.operation_stat(collection_id, path=path)
     except globus_sdk.GlobusAPIError as e:
-        log_tool_error(ctx, tool_name=globus_transfer_stat_path.__name__, service=_SERVICE, error=e)
         raise ToolError(f"Failed to stat path: {e}") from e
 
     return TransferFile(

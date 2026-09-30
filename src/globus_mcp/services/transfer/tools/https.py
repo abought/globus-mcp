@@ -32,8 +32,9 @@ def _ensure_parent_dirs(
     client: globus_sdk.TransferClient, collection_id: str, dest_path: str
 ) -> None:
     """
+    Although globus transfers auto-create intermediate folders, upload-via-https does not.
+
     Create any missing directory segments up to dest_path's parent.
-      Although globus transfers auto-create the path, upload-via-https does not.
     """
     parent = PurePosixPath(dest_path).parent
     if str(parent) == "/":
@@ -91,6 +92,37 @@ def _get_https_auth_header(ctx: Context[GlobusContext], collection_id: str) -> t
     return https_base_url, auth_header
 
 
+def _prepare_upload(
+    ctx: Context[GlobusContext], collection_id: str, dest_path: str
+) -> tuple[str, str]:
+    """
+    Check that an HTTPS upload to dest_path can proceed, and return (url, auth_header).
+
+    Refuses to overwrite an existing file, and creates any missing parent directories.
+    """
+    client = get_transfer_client(ctx)
+
+    try:
+        client.operation_stat(collection_id, path=dest_path)
+        raise ToolError(
+            f"Destination already exists on collection: {dest_path!r}."
+            " This tool does not overwrite existing files."
+        )
+    except globus_sdk.GlobusAPIError as e:
+        if e.http_status != HTTPStatus.NOT_FOUND:
+            raise ToolError(f"Failed to check destination: {e}") from e
+
+    https_base_url, auth_header = _get_https_auth_header(ctx, collection_id)
+
+    try:
+        _ensure_parent_dirs(client, collection_id, dest_path)
+    except globus_sdk.GlobusAPIError as e:
+        raise ToolError(f"Failed to create destination directories: {e}") from e
+
+    url = https_base_url.rstrip("/") + "/" + dest_path.lstrip("/")
+    return url, auth_header
+
+
 def _iter_file(path: Path) -> Iterator[bytes]:
     with path.open("rb") as f:
         yield from iter(lambda: f.read(65_536), b"")
@@ -130,8 +162,10 @@ def globus_transfer_direct_upload_content_via_https(
     Convenience helper: Most globus transfers require both a source and a destination collection.
       Some collections allow direct file upload (via https) without a source collection.
 
-    Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
-      larger files or folders. Does not overwrite existing files.
+    Limited to single files ≤ 1 MiB. Use `globus_transfer_upload_file_via_https`
+     or `globus_transfer_submit_file_transfer_task` for larger files or folders.
+
+    Does not overwrite existing files.
     """
 
     if encoding == "base64":
@@ -148,26 +182,7 @@ def globus_transfer_direct_upload_content_via_https(
             " Use `globus_transfer_submit_file_transfer_task` for larger files."
         )
 
-    client = get_transfer_client(ctx)
-
-    try:
-        client.operation_stat(collection_id, path=dest_path)
-        raise ToolError(
-            f"Destination already exists on collection: {dest_path!r}."
-            " This tool does not overwrite existing files."
-        )
-    except globus_sdk.GlobusAPIError as e:
-        if e.http_status != HTTPStatus.NOT_FOUND:
-            raise ToolError(f"Failed to check destination: {e}") from e
-
-    https_base_url, auth_header = _get_https_auth_header(ctx, collection_id)
-
-    try:
-        _ensure_parent_dirs(client, collection_id, dest_path)
-    except globus_sdk.GlobusAPIError as e:
-        raise ToolError(f"Failed to create destination directories: {e}") from e
-
-    url = https_base_url.rstrip("/") + "/" + dest_path.lstrip("/")
+    url, auth_header = _prepare_upload(ctx, collection_id, dest_path)
 
     try:
         with httpx2.Client() as http_client:
@@ -322,26 +337,7 @@ def globus_transfer_upload_file_via_https(
             " Use `globus_transfer_submit_file_transfer_task` for larger files."
         )
 
-    client = get_transfer_client(ctx)
-
-    try:
-        client.operation_stat(collection_id, path=dest_path)
-        raise ToolError(
-            f"Destination already exists on collection: {dest_path!r}."
-            " This tool does not overwrite existing files."
-        )
-    except globus_sdk.GlobusAPIError as e:
-        if e.http_status != HTTPStatus.NOT_FOUND:
-            raise ToolError(f"Failed to check destination: {e}") from e
-
-    https_base_url, auth_header = _get_https_auth_header(ctx, collection_id)
-
-    try:
-        _ensure_parent_dirs(client, collection_id, dest_path)
-    except globus_sdk.GlobusAPIError as e:
-        raise ToolError(f"Failed to create destination directories: {e}") from e
-
-    url = https_base_url.rstrip("/") + "/" + dest_path.lstrip("/")
+    url, auth_header = _prepare_upload(ctx, collection_id, dest_path)
 
     try:
         with httpx2.Client(timeout=None) as http_client:

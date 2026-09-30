@@ -7,8 +7,4 @@ class SearchIndex(BaseModel):
     description: str | None = Field(default=None, description="Description of the index")
     size: int | None = Field(default=None, description="Size of the index in bytes")
     num_subjects: int | None = Field(default=None, description="Number of subjects in the index")
-    allowed: bool = Field(
-        description=(
-            "Whether this MCP server is allowed to query this index."
-        ),
-    )
+    allowed: bool = Field(description="Whether this MCP server is allowed to query this index.")

@@ -1,18 +1,91 @@
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 import globus_sdk
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import BaseModel, Field
 
 from globus_mcp.core.audit import log_tool_call, log_tool_error, log_tool_result
 from globus_mcp.core.categories import ToolCategory
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.search.client import get_search_client
-from globus_mcp.services.search.schemas import SearchIndex
+from globus_mcp.services.search.schemas.indices import SearchIndex
+from globus_mcp.services.search.schemas.query import Boost, Facet, Filter, Sort
+from globus_mcp.services.search.schemas.results import (
+    FacetBucket,
+    FacetResult,
+    SearchEntry,
+    SearchQueryResult,
+    SearchSubject,
+)
 from globus_mcp.services.search.whitelist import check_index_allowed
 
 _SERVICE = "search"
+
+
+def _dump(items: list[BaseModel] | None) -> list[dict[str, Any]] | None:
+    if items is None:
+        return None
+    return [i.model_dump(mode="json", by_alias=True, exclude_none=True) for i in items]
+
+
+def _build_query_body(
+    *,
+    q: str | None,
+    advanced: bool,
+    filters: list[Any] | None,
+    facets: list[Any] | None,
+    post_facet_filters: list[Any] | None,
+    boosts: list[Any] | None,
+    sort: list[Any] | None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "advanced": advanced,
+        "bypass_visible_to": False,  # hide admin only behaviors from query
+        "fields": ["content"],
+        "q": q,
+        "filters": _dump(filters),
+        "facets": _dump(facets),
+        "post_facet_filters": _dump(post_facet_filters),
+        "boosts": _dump(boosts),
+        "sort": _dump(sort),
+    }
+    return {k: v for k, v in body.items() if v is not None}
+
+
+def _format_query_response(data: dict[str, Any]) -> SearchQueryResult:
+    facet_results = None
+    if "facet_results" in data:
+        facet_results = [
+            FacetResult(
+                name=f["name"],
+                value=f.get("value"),
+                buckets=(
+                    [FacetBucket(value=b["value"], count=b["count"]) for b in f["buckets"]]
+                    if "buckets" in f
+                    else None
+                ),
+            )
+            for f in data["facet_results"]
+        ]
+    return SearchQueryResult(
+        total=data["total"],
+        count=data["count"],
+        offset=data["offset"],
+        has_next_page=data["has_next_page"],
+        gmeta=[
+            SearchSubject(
+                subject=g["subject"],
+                entries=[
+                    SearchEntry(entry_id=e.get("entry_id"), content=e["content"])
+                    for e in g["entries"]
+                ],
+            )
+            for g in data["gmeta"]
+        ],
+        facet_results=facet_results,
+    )
 
 
 def globus_search_list_indices(ctx: Context[GlobusContext]) -> list[SearchIndex]:
@@ -55,8 +128,85 @@ def globus_search_list_indices(ctx: Context[GlobusContext]) -> list[SearchIndex]
     return indices
 
 
+def globus_search_query(
+    index_id: Annotated[str, Field(description="ID of the search index to query")],
+    q: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Query string. Required unless `filters` is given. By default it is parsed"
+                " leniently; with `advanced` it supports field:value terms, AND/OR/NOT and"
+                " parentheses, and a malformed query is an error."
+            )
+        ),
+    ] = None,
+    advanced: Annotated[
+        bool, Field(description="Enable elasticsearch-style advanced query string syntax for `q`.")
+    ] = False,
+    filters: Annotated[
+        list[Filter] | None,
+        Field(description="Filters restricting the results. Applied before facets are counted."),
+    ] = None,
+    facets: Annotated[
+        list[Facet] | None, Field(description="Aggregations (counts, histograms, sums) to compute.")
+    ] = None,
+    post_facet_filters: Annotated[
+        list[Filter] | None,
+        Field(description="Filters applied to results only, after facet counts are computed."),
+    ] = None,
+    boosts: Annotated[
+        list[Boost] | None,
+        Field(description="Relevance weights per field. Ignored by the service if `sort` is set."),
+    ] = None,
+    sort: Annotated[
+        list[Sort] | None, Field(description="Explicit result ordering, instead of relevance.")
+    ] = None,
+    limit: Annotated[int, Field(ge=1, le=50, description="Maximum results to return.")] = 25,
+    offset: Annotated[int, Field(ge=0, description="Zero based offset into the result set.")] = 0,
+    *,
+    ctx: Context[GlobusContext],
+) -> SearchQueryResult:
+    """
+    Query a Globus Search index.
+
+    For advanced queries: nested fields are separated with `.`, eg `dc.title`.
+
+    Result fields are index-specific. See `__TODO__REFERENCE__` for index-specific field mappings.
+    """
+    log_tool_call(ctx, tool_name=globus_search_query.__name__, service=_SERVICE)
+    search_config = ctx.request_context.lifespan_context.config.search
+    check_index_allowed(search_config, index_id)
+    if q is None and not filters:
+        raise ToolError("At least one of `q` or `filters` is required.")
+
+    client = get_search_client(ctx)
+    body = _build_query_body(
+        q=q,
+        advanced=advanced,
+        filters=filters,
+        facets=facets,
+        post_facet_filters=post_facet_filters,
+        boosts=boosts,
+        sort=sort,
+    )
+    try:
+        r = client.post_search(index_id, body, limit=limit, offset=offset)
+    except globus_sdk.GlobusAPIError as e:
+        log_tool_error(ctx, tool_name=globus_search_query.__name__, service=_SERVICE, error=e)
+        raise ToolError(f"Search query failed: {e}") from e
+
+    result = _format_query_response(r.data)
+    log_tool_result(
+        ctx,
+        tool_name=globus_search_query.__name__,
+        service=_SERVICE,
+        result={"count": result.count, "total": result.total},
+    )
+    return result
+
+
 SEARCH_TOOLS_BY_CATEGORY: dict[ToolCategory, list[Callable[..., Any]]] = {
-    ToolCategory.READ: [globus_search_list_indices],
+    ToolCategory.READ: [globus_search_list_indices, globus_search_query],
     ToolCategory.OPERATE: [],
     ToolCategory.ADMIN: [],
 }

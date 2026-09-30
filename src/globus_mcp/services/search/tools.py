@@ -19,7 +19,7 @@ from globus_mcp.services.search.schemas.results import (
     SearchQueryResult,
     SearchSubject,
 )
-from globus_mcp.services.search.whitelist import check_index_allowed
+from globus_mcp.services.search.whitelist import check_index_allowed, search_whitelist
 
 _SERVICE = "search"
 
@@ -126,6 +126,7 @@ def globus_search_list_indices(*, ctx: Context[GlobusContext]) -> list[SearchInd
 
 
 @audited(_SERVICE)
+@search_whitelist("index_id")
 def globus_search_query(
     index_id: Annotated[str, Field(description="ID of the search index to query")],
     q: Annotated[
@@ -171,11 +172,6 @@ def globus_search_query(
 
     Result fields are index-specific. See `__TODO__REFERENCE__` for index-specific field mappings.
     """
-    search_config = ctx.request_context.lifespan_context.config.search
-    try:
-        check_index_allowed(search_config, index_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
     if q is None and not filters:
         raise ToolError("At least one of `q` or `filters` is required.")
 

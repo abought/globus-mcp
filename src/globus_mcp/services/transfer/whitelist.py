@@ -2,6 +2,12 @@
 Enforce "collection whitelist" behaviors.
 """
 
+import functools
+from collections.abc import Callable
+from typing import Any
+
+from mcp.server.mcpserver.exceptions import ToolError
+
 from globus_mcp.services.transfer.config import TransferConfig
 
 
@@ -36,3 +42,34 @@ def check_destination_allowed(
             " allowlist (GLOBUS_TRANSFER_ALLOWED_DESTINATION_COLLECTIONS)."
         )
     return allowed
+
+
+def transfer_whitelist(
+    *, source: str | None = None, destination: str | None = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Reject a tool call if a collection is not permitted by the transfer whitelists.
+
+    `source` and `destination` are the names of the tool parameters holding the collection ID to
+    check in that role (at least one is required). A denial becomes a `ToolError`, so the LLM can
+    see why.
+    """
+    if source is None and destination is None:
+        raise TypeError("transfer_whitelist needs a source and/or destination parameter name")
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            config = kwargs["ctx"].request_context.lifespan_context.config.transfer
+            try:
+                if source is not None:
+                    check_source_allowed(config, kwargs[source])
+                if destination is not None:
+                    check_destination_allowed(config, kwargs[destination])
+            except ValueError as e:
+                raise ToolError(str(e)) from e
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

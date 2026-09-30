@@ -21,7 +21,7 @@ from globus_mcp.services.transfer.schemas import (
     HttpsFileUploadResponse,
     HttpsUploadResponse,
 )
-from globus_mcp.services.transfer.whitelist import check_destination_allowed, check_source_allowed
+from globus_mcp.services.transfer.whitelist import transfer_whitelist
 
 _SERVICE = "transfer"
 _LLM_MAX_BYTES = 1 * 1024 * 1024  # 1 MiB — fits comfortably in LLM context
@@ -97,6 +97,7 @@ def _iter_file(path: Path) -> Iterator[bytes]:
 
 
 @audited(_SERVICE)
+@transfer_whitelist(destination="collection_id")
 def globus_transfer_direct_upload_content_via_https(
     collection_id: Annotated[str, Field(description="UUID of the Globus collection")],
     dest_path: Annotated[
@@ -132,12 +133,6 @@ def globus_transfer_direct_upload_content_via_https(
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
       larger files or folders. Does not overwrite existing files.
     """
-    try:
-        check_destination_allowed(
-            ctx.request_context.lifespan_context.config.transfer, collection_id
-        )
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     if encoding == "base64":
         try:
@@ -197,6 +192,7 @@ def globus_transfer_direct_upload_content_via_https(
 
 
 @audited(_SERVICE)
+@transfer_whitelist(source="collection_id")
 def globus_transfer_direct_read_content(
     collection_id: Annotated[str, Field(description="UUID of the Globus collection")],
     source_path: Annotated[
@@ -214,10 +210,6 @@ def globus_transfer_direct_read_content(
     Convenience helper: Most globus transfers require both a source and a destination collection.
       Some collections allow direct file access (via https) without a destination collection.
     """
-    try:
-        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     https_base_url, auth_header = _get_https_auth_header(ctx, collection_id)
 
@@ -273,6 +265,7 @@ def globus_transfer_direct_read_content(
 
 
 @audited(_SERVICE)
+@transfer_whitelist(destination="collection_id")
 def globus_transfer_upload_file_via_https(
     collection_id: Annotated[str, Field(description="UUID of the Globus collection")],
     dest_path: Annotated[
@@ -308,12 +301,6 @@ def globus_transfer_upload_file_via_https(
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
       larger files or folders. Does not overwrite existing files.
     """
-    try:
-        check_destination_allowed(
-            ctx.request_context.lifespan_context.config.transfer, collection_id
-        )
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration
@@ -384,6 +371,7 @@ def globus_transfer_upload_file_via_https(
 
 
 @audited(_SERVICE)
+@transfer_whitelist(source="collection_id")
 def globus_transfer_download_file_via_https(
     collection_id: Annotated[str, Field(description="UUID of the Globus collection")],
     source_path: Annotated[
@@ -419,10 +407,6 @@ def globus_transfer_download_file_via_https(
     Limited to single files ≤ 100 MiB; use `globus_transfer_submit_file_transfer_task` for
       larger files or folders.
     """
-    try:
-        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     filesystem_root = ctx.request_context.lifespan_context.config.filesystem_root
     assert filesystem_root is not None  # guaranteed by conditional registration

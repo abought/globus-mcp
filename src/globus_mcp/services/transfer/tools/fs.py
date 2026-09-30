@@ -11,12 +11,13 @@ from globus_mcp.core.audit import audited
 from globus_mcp.core.context import GlobusContext
 from globus_mcp.services.transfer.client import get_transfer_client
 from globus_mcp.services.transfer.schemas.fs import TransferFile, TransferFileList
-from globus_mcp.services.transfer.whitelist import check_source_allowed
+from globus_mcp.services.transfer.whitelist import transfer_whitelist
 
 _SERVICE = "transfer"
 
 
 @audited(_SERVICE)
+@transfer_whitelist(source="collection_id")
 def globus_transfer_list_directory_contents(
     collection_id: Annotated[str, Field(description="UUID of the collection")],
     path: Annotated[str, Field(description="Path to a directory")],
@@ -32,10 +33,6 @@ def globus_transfer_list_directory_contents(
     ctx: Context[GlobusContext],
 ) -> TransferFileList:
     """List contents of a directory on a Globus Transfer collection. Note: Not recursive."""
-    try:
-        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
 
@@ -65,6 +62,7 @@ def globus_transfer_list_directory_contents(
 
 
 @audited(_SERVICE)
+@transfer_whitelist(source="collection_id")
 def globus_transfer_stat_path(
     collection_id: Annotated[str, Field(description="UUID of the collection")],
     path: Annotated[str, Field(description="Path to a file or directory")],
@@ -77,10 +75,6 @@ def globus_transfer_stat_path(
     Useful for checking existence or confirming a path's type before running a transfer.
     Raises an error if the path does not exist.
     """
-    try:
-        check_source_allowed(ctx.request_context.lifespan_context.config.transfer, collection_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
 

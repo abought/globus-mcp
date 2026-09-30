@@ -17,7 +17,7 @@ from globus_mcp.services.transfer.schemas.tasks import (
     TransferSubmitResponse,
     TransferTask,
 )
-from globus_mcp.services.transfer.whitelist import check_destination_allowed, check_source_allowed
+from globus_mcp.services.transfer.whitelist import transfer_whitelist
 
 _SERVICE = "transfer"
 
@@ -40,6 +40,7 @@ def _handle_gare(
 
 
 @audited(_SERVICE)
+@transfer_whitelist(source="source_collection_id", destination="destination_collection_id")
 def globus_transfer_submit_file_transfer_task(
     source_collection_id: Annotated[str, Field(description="UUID of the source collection")],
     destination_collection_id: Annotated[
@@ -91,12 +92,6 @@ def globus_transfer_submit_file_transfer_task(
 
     Use `globus_transfer_get_task_status` to monitor the task's progress.
     """
-    transfer_config = ctx.request_context.lifespan_context.config.transfer
-    try:
-        check_source_allowed(transfer_config, source_collection_id)
-        check_destination_allowed(transfer_config, destination_collection_id)
-    except ValueError as e:
-        raise ToolError(str(e)) from e
 
     client = get_transfer_client(ctx)
 

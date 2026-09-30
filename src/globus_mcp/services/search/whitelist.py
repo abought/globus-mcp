@@ -2,6 +2,12 @@
 Enforce "index whitelist" behaviors.
 """
 
+import functools
+from collections.abc import Callable
+from typing import Any
+
+from mcp.server.mcpserver.exceptions import ToolError
+
 from globus_mcp.services.search.config import SearchConfig
 
 
@@ -20,3 +26,26 @@ def check_index_allowed(config: SearchConfig, index_id: str, *, err: bool = True
             " allowlist (GLOBUS_SEARCH_ALLOWED_INDICES)."
         )
     return allowed
+
+
+def search_whitelist(index: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Reject a tool call if an index is not permitted by the search whitelist.
+
+    `index` is the name of the tool parameter holding the index ID. A denial becomes a
+    `ToolError`, so the LLM can see why.
+    """
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            config = kwargs["ctx"].request_context.lifespan_context.config.search
+            try:
+                check_index_allowed(config, kwargs[index])
+            except ValueError as e:
+                raise ToolError(str(e)) from e
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

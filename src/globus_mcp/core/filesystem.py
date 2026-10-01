@@ -134,8 +134,27 @@ def resolve_filesystem_root() -> Path | None:
             )
 
     # Check 4: FHS / OS system directories
+    # Special exemption: on some platforms, user temp dir is allowed, even if part of an otherwise denied root
+    # To avoid leaking data from other programs, users:
+    # * Allow things inside the temp dir, but not the root temp folder.
+    # * User must own the chosen folder
+    temp_dir = Path(tempfile.gettempdir()).resolve()
+    if root == temp_dir:
+        raise ValueError(
+            f"FILESYSTEM_ROOT must not be the system temp directory ({temp_dir})."
+            " Choose a dedicated subdirectory."
+        )
+    in_temp_dir = root.is_relative_to(temp_dir)
+    if in_temp_dir and root.stat().st_uid != os.geteuid():
+        raise ValueError(
+            f"FILESYSTEM_ROOT ({root}) is inside the system temp directory but is not owned"
+            " by the current user."
+        )
+
     for sysdir_str in _FHS_SYSTEM_DIRS:
         sysdir = Path(sysdir_str).resolve()
+        if in_temp_dir and temp_dir.is_relative_to(sysdir):
+            continue
         if _overlaps(root, sysdir):
             raise ValueError(
                 f"FILESYSTEM_ROOT ({root}) overlaps with an OS system directory"

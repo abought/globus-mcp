@@ -27,6 +27,7 @@ _EXTRA_FIELDS = (
     "client_version",
     "error_type",
     "error_message",
+    "error_body",
 )
 
 audit_logger = logging.getLogger(_LOGGER_NAME)
@@ -171,6 +172,9 @@ def log_tool_error(
     )
     extra["error_type"] = type(error).__name__
     extra["error_message"] = str(error)
+    if isinstance(error, globus_sdk.GlobusAPIError):
+        # Full verbatim response body; includes structured details (eg GARE) for troubleshooting
+        extra["error_body"] = error.text
     audit_logger.error(f"Tool error in {tool_name}: {error}", extra=extra)
 
 
